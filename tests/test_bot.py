@@ -146,6 +146,22 @@ class BrowserTests(unittest.TestCase):
             self.assertTrue(runner.process_course_lessons(self.page))
         self.assertEqual(visited, ['http://oracle.test/read', 'http://oracle.test/quiz'])
 
+    def test_completed_quiz_landing_does_not_start_another_attempt(self):
+        visited = []
+        def route(request):
+            visited.append(request.request.url)
+            body = ('<li class="t-WizardSteps-step is-complete">Done</li>'
+                    if request.request.url.endswith('/next') else
+                    '<li class="t-WizardSteps-step is-complete is-active-module"><a href="/quiz">Quiz 1</a></li>'
+                    '<li class="t-WizardSteps-step"><a href="/next">Next lesson</a></li>'
+                    '<a href="/wrong">Take an Assessment</a>')
+            request.fulfill(body=body, content_type='text/html')
+        self.page.route('http://oracle.test/**', route)
+        self.page.goto('http://oracle.test/quiz')
+        with patch('bot.runner.STEP_DELAY', 0):
+            self.assertTrue(runner.process_course_lessons(self.page))
+        self.assertEqual(visited, ['http://oracle.test/quiz', 'http://oracle.test/next'])
+
     def test_resumable_assessment_uses_finish_assessment_opener(self):
         from bot.apex_helpers import is_quiz_landing_page
         self.page.set_content('''<a onclick="document.querySelector('div').style.display='block'">Finish Assessment</a><div role="dialog" style="display:none"><button onclick="document.body.innerHTML='Question 1 of 1'">Start</button></div>''')

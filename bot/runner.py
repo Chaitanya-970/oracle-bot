@@ -141,6 +141,21 @@ def process_course_lessons(page):
         if steps and all(step_complete(item) for _, item in steps):
             log_success(f"Confirmed all {len(steps)} sidebar steps are complete.")
             return True
+        # Returning from results can leave a completed quiz's start control
+        # visible. Consult the sidebar before opening another attempt.
+        if (is_quiz_landing_page(page) and
+                any(is_step_active(item) and step_complete(item) for _, item in steps)):
+            remaining = [item for _, item in steps if not step_complete(item)]
+            if remaining:
+                before = fingerprint(page)
+                target = remaining[0]
+                link = target.locator("a.t-WizardSteps-wrap, a, .t-WizardSteps-label").first
+                log_info("Skipping completed assessment; opening the next incomplete sidebar item.")
+                if not (safe_click(link) or safe_click(target)):
+                    return fail(page, "Could not leave the completed assessment.")
+                if not wait_until(page, lambda: fingerprint(page) != before):
+                    return fail(page, "Completed assessment navigation made no progress.")
+                continue
         if is_quiz_start_modal(page) or is_quiz_landing_page(page):
             if not handle_quiz_landing_and_start(page):
                 return False
