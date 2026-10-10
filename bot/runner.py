@@ -282,15 +282,37 @@ def run_oracle_bot():
     from bot.groq_solver import validate_api
     validate_api()
     with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            user_data_dir=str(BROWSER_PROFILE_DIR), headless=HEADLESS,
-            channel=BROWSER_CHANNEL or None, no_viewport=True,
-            args=["--start-maximized"])
+        try:
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=str(BROWSER_PROFILE_DIR), headless=HEADLESS,
+                channel=BROWSER_CHANNEL or None, no_viewport=True,
+                args=["--start-maximized"])
+        except Exception as exc:
+            if "profile is already in use" in str(exc).lower() or "existing browser session" in str(exc).lower():
+                log_warn("A Chrome window is already using this profile. Please close Chrome and press Enter to retry.")
+                input("Close all Chrome windows opened by the bot, then press Enter to continue: ")
+                context = p.chromium.launch_persistent_context(
+                    user_data_dir=str(BROWSER_PROFILE_DIR), headless=HEADLESS,
+                    channel=BROWSER_CHANNEL or None, no_viewport=True,
+                    args=["--start-maximized"])
+            else:
+                raise
+
+        # Clean up any blank/extra tabs opened automatically by Chrome
+        for extra in list(context.pages)[1:]:
+            try:
+                if extra.url in ("about:blank", "chrome://newtab/", ""):
+                    extra.close()
+            except Exception:
+                pass
+
         page = context.pages[0] if context.pages else context.new_page()
+        page.bring_to_front()
         page.set_default_timeout(10000)
         page.on("dialog", native_dialog)
         try:
-            page.goto(ORACLE_HOME_URL, timeout=PAGE_LOAD_TIMEOUT, wait_until="domcontentloaded")
+            if page.url in ("about:blank", ""):
+                page.goto(ORACLE_HOME_URL, timeout=PAGE_LOAD_TIMEOUT, wait_until="domcontentloaded")
             input("Sign in and open Classes or the course outline in Chrome, then press Enter here: ")
             while True:
                 try:
