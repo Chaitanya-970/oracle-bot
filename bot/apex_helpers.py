@@ -156,18 +156,42 @@ def step_complete(step):
         return False
 
 
+def is_step_active(step):
+    try:
+        classes = (step.get_attribute("class") or "").split()
+        if any(c in classes for c in ("is-active", "is-selected", "is-current", "active")):
+            return True
+        if step.get_attribute("aria-current") in ("step", "page", "true"):
+            return True
+        link = step.locator("a, .t-WizardSteps-wrap").first
+        if link.count():
+            link_classes = (link.get_attribute("class") or "").split()
+            if any(c in link_classes for c in ("is-active", "is-selected", "is-current", "active")):
+                return True
+            if link.get_attribute("aria-current") in ("step", "page", "true"):
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def is_multiple_choice_question(page, question_text, locators):
     for loc in locators:
         try:
-            if loc.get_attribute("role") == "checkbox":
+            resp_type = loc.get_attribute("data-response-type")
+            if resp_type == "1":
+                return False
+            if resp_type == "2":
                 return True
-            if loc.get_attribute("data-response-type") == "2":
-                return True
-            icon = loc.locator(".choice-Icon, [class*='fa-']").first
-            if icon.count() and "square" in (icon.get_attribute("class") or ""):
+            role = loc.get_attribute("role")
+            if role == "radio":
+                return False
+            if role == "checkbox":
                 return True
         except Exception:
             continue
     full_text = f"{question_text} {page_text(page)}"
+    if re.search(r"just one correct", full_text, re.I):
+        return False
     return bool(re.search(r"select all that apply|choose (?:two|three|four|five|all|\d+)|which (?:two|three|four|five|\d+)", full_text, re.I))
 

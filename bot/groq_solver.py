@@ -170,7 +170,12 @@ def solve_mcq(question_text: str, options: list[str], image_b64: str = None, ret
             if e.code not in (408, 429) and e.code < 500:
                 raise RuntimeError(last_error) from e
             if e.code == 429: # Rate limit
-                time.sleep(3.0 * attempt)
+                sleep_sec = max(3.5 * attempt, 3.5)
+                match = re.search(r"try again in ([\d\.]+)s", err_body, re.I)
+                if match:
+                    sleep_sec = max(float(match.group(1)) + 0.5, sleep_sec)
+                log_warn(f"Rate limited by Groq. Pausing {sleep_sec:.1f}s before retry {attempt+1}...")
+                time.sleep(sleep_sec)
             else:
                 time.sleep(1.5)
         except Exception as e:

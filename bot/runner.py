@@ -6,7 +6,7 @@ from bot.diagnostics import log_info, log_success, log_warn, log_error, capture_
 from bot.apex_helpers import (safe_click, click_button_by_text, matching_button,
     is_assessment_question_page, is_quiz_landing_page, is_quiz_start_modal,
     extract_question_and_options, visible_locators, page_text, question_identity,
-    wizard_steps, step_complete, is_multiple_choice_question)
+    wizard_steps, step_complete, is_step_active, is_multiple_choice_question)
 from bot.groq_solver import solve_with_session
 from bot.session import maintain_session, session_wait, wait_until, native_dialog, SessionExpired
 
@@ -81,10 +81,9 @@ def solve_current_quiz(page):
             return fail(page, "Answer choices changed while solving.")
         if not indices or any(type(i) is not int or i < 0 or i >= len(locators) for i in indices):
             return fail(page, "Invalid answer indices; nothing submitted.")
-        if len(indices) > 1:
-            multiple = True
-        if not multiple and len(indices) != 1:
-            return fail(page, "Multiple answers returned for a radio question.")
+        if not multiple and len(indices) > 1:
+            log_warn(f"Multiple answers {indices} returned for single-choice; selecting primary option [{indices[0]}].")
+            indices = [indices[0]]
         for i, loc in enumerate(locators):
             checked = loc.get_attribute("aria-checked") == "true"
             if (i in indices and not checked) or (multiple and i not in indices and checked):
@@ -95,6 +94,7 @@ def solve_current_quiz(page):
             if state is not None and (state == "true") != (i in indices):
                 return fail(page, f"Answer {i} did not reach the requested selection state.")
         seen.add(identity)
+        session_wait(page, 0.5)
         if not click_button_by_text(page, [r"^Submit Answer$", r"^Next Question$", r"^Next$"]):
             return finish_assessment(page)
         if not wait_until(page, lambda: question_identity(page) != identity or matching_button(page, [r"^Next Question$", r"^Next$"]) is not None):
@@ -142,13 +142,16 @@ def process_course_lessons(page):
         before = fingerprint(page)
         incomplete = [item for _, item in steps if not step_complete(item)]
         if incomplete:
-            active_steps = [item for _, item in steps if "is-active" in (item.get_attribute("class") or "").split()]
-            # If the currently opened step is already complete, jump directly to the first incomplete item!
-            if active_steps and step_complete(active_steps[0]) and active_steps[0] != incomplete[0]:
-                target = incomplete[0]
+            target = incomplete[0]
+            # If the first incomplete step is not already the active step, jump directly to it!
+            if not is_step_active(target):
                 link = target.locator("a.t-WizardSteps-wrap, a, .t-WizardSteps-label").first
-                log_info(f"Current step is already complete. Jumping directly to incomplete step ({len(incomplete)} left)...")
-                if safe_click(link) and wait_until(page, lambda: fingerprint(page) != before):
+                log_info(f"Jumping directly to incomplete step ({len(incomplete)} remaining in section)...")
+                try:
+                    link.scroll_into_view_if_needed(timeout=2000)
+                except Exception:
+                    pass
+                if (safe_click(link) or safe_click(target)) and wait_until(page, lambda: fingerprint(page) != before):
                     continue
 
         if click_button_by_text(page, [r"^Save and Continue$", r"^Save Progress$"]):
@@ -241,6 +244,18 @@ def walk_courses(page, depth=0):
         current = course_controls(page) if classes else section_controls(page)
         if len(current) != len(labels) or item_label(current[index][1]) != label:
             return fail(page, f"The {kind} list changed; cannot safely identify item {index + 1}.")
+        if not classes:
+            try:
+                badge = current[index][1].locator('.t-MediaList-badge, [class*="badge"]')
+                if not badge.count():
+                    badge = current[index][1].locator('xpath=ancestor::li[1]').locator('.t-MediaList-badge, [class*="badge"]')
+                badge_text = badge.first.inner_text() if badge.count() else ""
+                pct = re.search(r'(\d+)\s*%', badge_text)
+                if pct and int(pct.group(1)) == 100:
+                    log_success(f"Skipping {label} (already 100% complete).")
+                    continue
+            except Exception:
+                pass
         before = fingerprint(page)
         log_info(f"Opening {kind} {index + 1}/{len(labels)}: {label}")
         if not safe_click(current[index][1]) or not wait_until(page, lambda: fingerprint(page) != before):
