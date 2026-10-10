@@ -12,7 +12,23 @@ from pathlib import Path
 
 def redact(text):
     text = re.sub(r'gsk_[A-Za-z0-9]+', '[API key hidden]', str(text))
+    text = re.sub(r'https?://academy\.oracle\.com\S*', '[Oracle session URL hidden]', text, flags=re.I)
+    text = re.sub(r'(?im)^\s*(?:Page URL|Screenshot|DOM Dump|Report):.*$', '', text)
     return re.sub(r'[\U0001F000-\U0001FAFF\u2600-\u27BF\ufe0f]', '', text).strip()
+
+
+def display_log(text):
+    """Keep detailed diagnostics in the file handler, not the app window."""
+    if '[DIAGNOSTIC ALERT]' in text:
+        if 'Groq API limit was reached' in text:
+            return None
+        match = re.search(r'Reason:\s*(.*)', text)
+        return 'Paused: ' + redact(match.group(1) if match else 'Unexpected browser state. Details saved in local diagnostics.')
+    if 'Groq HTTP 429' in text:
+        return 'Groq quota reached. Wait for quota to recover or enter a replacement key with available quota.'
+    if 'Groq API limit was reached' in text:
+        return 'Groq quota reached. Wait for quota to recover or enter a replacement key with available quota.'
+    return redact(text)
 
 
 def error_reason(exc):
@@ -64,7 +80,9 @@ def run():
         def emit(self, record):
             if record.levelno >= logging.ERROR:
                 last_failure['text'] = record.getMessage()
-            emit('log', level=record.levelname, text=redact(record.getMessage()))
+            visible = display_log(record.getMessage())
+            if visible:
+                emit('log', level='WARNING' if 'Groq quota reached' in visible else record.levelname, text=visible)
 
     def read_commands():
         for line in sys.stdin:
@@ -159,7 +177,7 @@ def run():
                         else:
                             log_text = last_failure['text']
                             if 'Groq API limit was reached' in log_text:
-                                emit('state', state='key', text='Stopped because your Groq account reached its API limit. Wait for quota to recover, or enter a key from an account with available quota. Another key on the same account shares its limit.')
+                                emit('state', state='key', text='Groq quota reached. Wait for quota to recover, or enter a replacement key with available quota and select Use key. Keys in the same organization share quota.')
                                 while True:
                                     wait_for('key', page)
                                     try:

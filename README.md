@@ -1,5 +1,7 @@
 # Oracle Bot
 
+**[Download the Windows desktop app](https://github.com/Chaitanya-970/oracle-bot/releases/download/v1.0.0/OracleBot-Windows.zip)** — extract the ZIP and open **OracleBot.exe**. [All releases](https://github.com/Chaitanya-970/oracle-bot/releases).
+
 A helper for Oracle Academy that opens your enrolled courses, saves lesson progress, and answers choice-based quizzes and exams using Groq.
 
 See the [documentation index](docs/README.md) for illustrated setup, platform-specific commands, troubleshooting, review findings, and licensing.
@@ -24,10 +26,10 @@ Both need an internet connection, your Oracle Academy account with enrolled cour
 
 ## Option 1: Windows desktop app
 
-The Windows desktop package is a preview and is not yet available as a GitHub release. Obtain **OracleBot-Windows-preview.zip** from the maintainer; the source-code ZIP from GitHub is a different download.
+Download **[OracleBot-Windows.zip](https://github.com/Chaitanya-970/oracle-bot/releases/download/v1.0.0/OracleBot-Windows.zip)** from GitHub Releases. The source-code ZIP from GitHub’s Code menu is a different download.
 
 1. Right-click the ZIP and select **Extract All**.
-2. Open the extracted **OracleBot** folder.
+2. Open the extracted folder. **OracleBot.exe** is directly inside it.
 3. Double-click **OracleBot.exe**. Keep the **_internal** folder beside it.
 4. Select **Start**, paste your Groq key in the app, and select **Use key**.
 5. Chromium opens. Sign in to Oracle Academy and open **Classes**.

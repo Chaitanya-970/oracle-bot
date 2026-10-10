@@ -3,6 +3,7 @@ import os
 import subprocess
 import shutil
 import sys
+import zipfile
 from pathlib import Path
 
 def main():
@@ -28,7 +29,23 @@ def main():
     python_license = Path(sys.base_prefix) / 'LICENSE.txt'
     if python_license.exists():
         shutil.copyfile(python_license, package / '_internal' / 'python-LICENSE.txt')
+    (package / 'START_HERE.txt').write_text(
+        'WINDOWS SETUP\n\n'
+        '1. Extract the entire ZIP.\n'
+        '2. Open OracleBot.exe in the extracted folder. Keep _internal beside it.\n'
+        '3. Select Start, enter your Groq key, and select Use key.\n'
+        '4. Sign in to Oracle in the browser, open Classes, then select Continue.\n\n'
+        'No separate Python, Node.js, or browser installation is needed.\n'
+        'Read README.md or docs/desktop-guide.md for more help.\n', encoding='utf-8')
+    archive = output / 'OracleBot-Windows.zip'
+    temporary = archive.with_suffix('.tmp.zip')
+    with zipfile.ZipFile(temporary, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
+        for path in sorted(package.rglob('*')):
+            if path.is_file():
+                bundle.write(path, path.relative_to(package))
+    temporary.replace(archive)
     print('Built package at', output / 'dist' / 'OracleBot')
+    print('Windows ZIP:', archive)
 
 
 if __name__ == '__main__':

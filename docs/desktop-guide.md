@@ -4,12 +4,12 @@
 
 You need Windows, internet access, your Oracle Academy account with enrolled courses, and a Groq API key. The desktop preview includes Python, Chromium and the application libraries. You do not need Python, Node.js, npm, pip, or Chrome installed separately.
 
-The app is a preview. Its offline checks passed, but its full Oracle workflow has not yet been validated. Obtain **OracleBot-Windows-preview.zip** from the maintainer. GitHub's Download ZIP button downloads the source instead.
+Download **[OracleBot-Windows.zip](https://github.com/Chaitanya-970/oracle-bot/releases/download/v1.0.0/OracleBot-Windows.zip)** from GitHub Releases. GitHub’s Code → Download ZIP downloads the source instead. Offline checks passed; completion across every desktop course has not yet been validated.
 
 ## First run
 
 1. Right-click the ZIP and select **Extract All**.
-2. Open the extracted **OracleBot** folder.
+2. Open the extracted folder; **OracleBot.exe** is directly inside it.
 3. Double-click **OracleBot.exe**. Keep **_internal** beside the executable.
 4. Select **Start**, paste your Groq key, then select **Use key**.
 5. Sign in to Oracle Academy in Chromium and open **Classes**.

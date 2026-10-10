@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
-from desktop_app.worker import replacement_ready, error_reason, pause_message
+from desktop_app.worker import replacement_ready, error_reason, pause_message, display_log, redact
 
 
 class ReplacementTests(unittest.TestCase):
@@ -49,6 +49,25 @@ class PauseTests(unittest.TestCase):
             App.open_repository(app)
             app.append.assert_called_once()
             alert.assert_called_once()
+
+
+class LogPrivacyTests(unittest.TestCase):
+    def test_quota_diagnostic_is_not_displayed(self):
+        self.assertIsNone(display_log("[DIAGNOSTIC ALERT] Reason: Groq API limit was reached"))
+
+    def test_rate_limit_payload_is_summarized(self):
+        text = display_log("Groq attempt 1 failed: Groq HTTP 429: organization org_private tokens per day")
+        self.assertIn("Groq quota reached", text)
+        self.assertNotIn("org_private", text)
+
+    def test_diagnostic_shows_reason_without_session_or_paths(self):
+        text = display_log("[DIAGNOSTIC ALERT]\nReason: Question did not advance\nPage URL: https://academy.oracle.com/pls/f?p=secret\nScreenshot: C:\\Users\\Private\\diag.png")
+        self.assertIn("Question did not advance", text)
+        self.assertNotIn("secret", text)
+        self.assertNotIn("Private", text)
+
+    def test_session_url_redacted_in_regular_errors(self):
+        self.assertNotIn("secret", redact("Navigation failed at https://academy.oracle.com/pls/f?p=secret"))
 
 
 if __name__ == '__main__':
