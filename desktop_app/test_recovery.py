@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
-from desktop_app.worker import replacement_ready
+from desktop_app.worker import replacement_ready, error_reason, pause_message
 
 
 class ReplacementTests(unittest.TestCase):
@@ -22,6 +22,33 @@ class ReplacementTests(unittest.TestCase):
         validate = Mock()
         self.assertFalse(replacement_ready({'action': 'continue'}, validate, Mock()))
         validate.assert_not_called()
+
+class PauseTests(unittest.TestCase):
+    def test_empty_exception_has_reason(self):
+        self.assertEqual(error_reason(TimeoutError()), "TimeoutError")
+
+    def test_missing_log_does_not_point_to_missing_error(self):
+        text = pause_message("")
+        self.assertIn("no error details", text)
+        self.assertIn("Continue", text)
+
+    def test_quiz_failure_has_specific_recovery(self):
+        self.assertIn("Open Classes", pause_message("Assessment scored 66%, below the required 70%."))
+
+    def test_repository_uses_windows_url_handler(self):
+        from desktop_app.window import App
+        app = Mock()
+        with unittest.mock.patch("desktop_app.window.sys.platform", "win32"), unittest.mock.patch("desktop_app.window.os.startfile", create=True) as launch:
+            App.open_repository(app)
+            launch.assert_called_once_with("https://github.com/Chaitanya-970/oracle-bot")
+
+    def test_repository_failure_is_visible(self):
+        from desktop_app.window import App
+        app = Mock()
+        with unittest.mock.patch("desktop_app.window.sys.platform", "win32"), unittest.mock.patch("desktop_app.window.os.startfile", create=True, side_effect=OSError("No browser")), unittest.mock.patch("desktop_app.window.messagebox.showerror") as alert:
+            App.open_repository(app)
+            app.append.assert_called_once()
+            alert.assert_called_once()
 
 
 if __name__ == '__main__':

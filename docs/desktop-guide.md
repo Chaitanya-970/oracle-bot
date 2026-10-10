@@ -33,7 +33,7 @@ This is a screenshot of the actual application, not a mockup.
 | Continue | Continues after login or a pause that needs browser attention. |
 | Stop | Stops this app's run. Saved Oracle progress remains. |
 | Log area | Shows lesson progress, question numbers, warnings, and errors. |
-| GitHub button | Appears when the run completes. |
+| Blue repository link | Appears when the run completes. Click it to open GitHub in your browser. |
 
 ## If Groq runs out of quota
 

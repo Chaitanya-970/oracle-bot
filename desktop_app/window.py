@@ -1,5 +1,6 @@
 """Small desktop window with all automation prompts and progress."""
 import json
+import os
 import queue
 import re
 import subprocess
@@ -30,8 +31,12 @@ class App:
         self.progress.pack(fill='x', pady=14)
         self.detail = tk.StringVar(value='No run started')
         ttk.Label(outer, textvariable=self.detail).pack(anchor='w')
-        self.repo_link = ttk.Button(outer, text='Open GitHub repository',
-                                   command=lambda: webbrowser.open('https://github.com/Chaitanya-970/oracle-bot'))
+        self.repo_link = ttk.Label(outer, text='https://github.com/Chaitanya-970/oracle-bot',
+                                   foreground='#0563c1', cursor='hand2',
+                                   font=('Segoe UI', 10, 'underline'), takefocus=True)
+        self.repo_link.bind('<Button-1>', lambda event: self.open_repository())
+        self.repo_link.bind('<Return>', lambda event: self.open_repository())
+        self.repo_link.bind('<space>', lambda event: self.open_repository())
         keys = ttk.Frame(outer)
         keys.pack(fill='x', pady=12)
         ttk.Label(keys, text='Groq API key').pack(side='left')
@@ -53,6 +58,10 @@ class App:
         self.log = tk.Text(log_frame, wrap='word', state='disabled', font=('Consolas', 10))
         scrollbar = ttk.Scrollbar(log_frame, command=self.log.yview)
         self.log.configure(yscrollcommand=scrollbar.set)
+        self.log.tag_configure('repository', foreground='#0563c1', underline=True)
+        self.log.tag_bind('repository', '<Button-1>', lambda event: self.open_repository())
+        self.log.tag_bind('repository', '<Enter>', lambda event: self.log.configure(cursor='hand2'))
+        self.log.tag_bind('repository', '<Leave>', lambda event: self.log.configure(cursor='xterm'))
         self.log.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
         root.protocol('WM_DELETE_WINDOW', self.close)
@@ -60,9 +69,26 @@ class App:
 
     def append(self, text):
         self.log.configure(state='normal')
-        self.log.insert('end', text + '\n')
+        url = 'https://github.com/Chaitanya-970/oracle-bot'
+        parts = text.split(url)
+        for index, part in enumerate(parts):
+            if index:
+                self.log.insert('end', url, 'repository')
+            self.log.insert('end', part)
+        self.log.insert('end', '\n')
         self.log.see('end')
         self.log.configure(state='disabled')
+
+    def open_repository(self):
+        url = 'https://github.com/Chaitanya-970/oracle-bot'
+        try:
+            if sys.platform == 'win32':
+                os.startfile(url)
+            elif not webbrowser.open(url, new=2):
+                raise RuntimeError('No browser accepted the link.')
+        except Exception as exc:
+            self.append('ERROR: Could not open the repository: ' + (str(exc) or type(exc).__name__))
+            messagebox.showerror('Could not open browser', f'Open this address in your browser:\n{url}\n\n{str(exc) or type(exc).__name__}')
 
     def start_worker(self):
         if self.process and self.process.poll() is None:
@@ -144,6 +170,7 @@ class App:
                 self.use_key.configure(state='normal' if state in ('key','running','paused') else 'disabled')
                 self.continue_button.configure(state='normal' if state in ('login','paused') else 'disabled')
                 if state == 'complete':
+                    self.status.set(event['text'].replace(' https://github.com/Chaitanya-970/oracle-bot', ''))
                     self.progress['value'] = 100
                     self.detail.set('Finished. Congratulations! Please check your final scores in Oracle.')
                     self.repo_link.pack(before=self.log_frame, anchor='w', pady=(6, 0))

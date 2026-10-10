@@ -15,6 +15,18 @@ def redact(text):
     return re.sub(r'[\U0001F000-\U0001FAFF\u2600-\u27BF\ufe0f]', '', text).strip()
 
 
+def error_reason(exc):
+    return redact(str(exc)) or type(exc).__name__
+
+
+def pause_message(reason):
+    reason = redact(reason) or 'The current page could not be processed; no error details were returned.'
+    action = ('Open Classes before selecting Continue to retry with recorded feedback.'
+              if 'below the required 70%' in reason else
+              'Check the browser, then select Continue to retry from the current page.')
+    return f'Paused: {reason}\n{action}'
+
+
 def replacement_ready(command, validate, emit):
     """A replacement resumes an API pause only after successful validation."""
     if command.get('action') != 'key':
@@ -136,6 +148,7 @@ def run():
                 wait_for('continue', page)
                 while True:
                     try:
+                        last_failure['text'] = ''
                         emit('state', state='running', text='Working through your enrolled courses. Progress appears below.')
                         if (not runner.course_controls(page) and not runner.wizard_steps(page)
                                 and not runner.section_controls(page) and not runner.is_assessment_question_page(page)):
@@ -156,15 +169,16 @@ def run():
                                         emit('log', level='ERROR', text=redact(exc))
                                         emit('state', state='key', text='This key could not be verified. Enter a valid key with available quota.')
                             else:
-                                emit('state', state='paused', text='The bot paused. Read the latest error below. For a failed quiz, open Classes in the browser before selecting Continue; the bot will retry it with recorded feedback. Otherwise fix the browser state and select Continue.')
+                                emit('state', state='paused', text=pause_message(log_text))
                                 wait_for('continue', page, resume_on_key='Groq' in log_text)
                     except SessionExpired as exc:
                         emit('log', level='WARNING', text=redact(exc))
                         emit('state', state='login', text='Oracle needs another sign-in. Sign in, open Classes, and select Continue.')
                         wait_for('continue', page)
                     except Exception as exc:
-                        emit('log', level='ERROR', text=redact(exc))
-                        emit('state', state='paused', text='The bot paused. Check the error below and select Continue when ready.')
+                        reason = error_reason(exc)
+                        emit('log', level='ERROR', text=reason)
+                        emit('state', state='paused', text=pause_message(reason))
                         wait_for('continue', page)
     except KeyboardInterrupt:
         emit('state', state='stopped', text='Stopped. Progress already saved in Oracle remains saved.')
