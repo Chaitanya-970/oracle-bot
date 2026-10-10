@@ -38,6 +38,22 @@ class ParserTests(unittest.TestCase):
             self.assertEqual(solve_mcq('Question', ['A','B'], retries=1), [0])
         sleep.assert_called_once_with(77.396)
 
+    def test_replacing_file_key_takes_effect_without_restart(self):
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        from bot.config import current_api_key
+        with TemporaryDirectory() as directory, patch('bot.config.PROJECT_ROOT', Path(directory)), patch('bot.config._file_loaded_keys', {'GROQ_API_KEY'}):
+            env = Path(directory) / '.env'
+            env.write_text('GROQ_API_KEY=first-key')
+            self.assertEqual(current_api_key(), 'first-key')
+            env.write_text('GROQ_API_KEY=second-key')
+            self.assertEqual(current_api_key(), 'second-key')
+
+    def test_external_key_keeps_precedence_over_file(self):
+        from bot.config import current_api_key
+        with patch('bot.config._file_loaded_keys', set()), patch('bot.config.GROQ_API_KEY', 'external-key'):
+            self.assertEqual(current_api_key(), 'external-key')
+
     def test_valid_outputs(self):
         for text, answer in [('0', [0]), ('[0,2]', [0, 2]), ('0, 2', [0, 2]), ('B', [1]), ('```json\n[1]\n```', [1])]:
             self.assertEqual(parse_option_indices(text, 4), answer)

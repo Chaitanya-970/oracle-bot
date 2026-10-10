@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
 from bot.config import (
     GROQ_API_KEY,
+    current_api_key,
     GROQ_TEXT_MODEL,
     GROQ_VISION_MODEL,
     GROQ_BASE_URL
@@ -26,12 +27,13 @@ Strict rules:
 
 
 def validate_api():
-    if not GROQ_API_KEY or GROQ_API_KEY.startswith("your_"):
+    api_key = current_api_key()
+    if not api_key or api_key.startswith("your_"):
         raise RuntimeError("Set GROQ_API_KEY in .env before starting.")
     parsed = urlsplit(GROQ_BASE_URL)
     endpoint = urlunsplit((parsed.scheme, parsed.netloc,
                           parsed.path.rsplit('/chat/completions', 1)[0] + '/models', '', ''))
-    request = Request(endpoint, headers={"Authorization": f"Bearer {GROQ_API_KEY}", "User-Agent": "OracleBot/1.0"})
+    request = Request(endpoint, headers={"Authorization": f"Bearer {api_key}", "User-Agent": "OracleBot/1.0"})
     try:
         with urlopen(request, timeout=20) as response:
             models = {item['id'] for item in json.load(response)['data']}
@@ -102,7 +104,8 @@ def solve_mcq(question_text: str, options: list[str], image_b64: str = None, ret
     Sends question and options to Groq API.
     Uses the configured text or multimodal model. Rejects ambiguous output.
     """
-    if not GROQ_API_KEY or GROQ_API_KEY.startswith("your_"):
+    api_key = current_api_key()
+    if not api_key or api_key.startswith("your_"):
         raise RuntimeError(
             "GROQ_API_KEY is not set! Please add your key to .env file:\n"
             "GROQ_API_KEY=gsk_your_key_here"
@@ -150,7 +153,7 @@ def solve_mcq(question_text: str, options: list[str], image_b64: str = None, ret
     req_data = json.dumps(payload).encode("utf-8")
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "User-Agent": "OracleBot/1.0"
     }
 
@@ -161,6 +164,7 @@ def solve_mcq(question_text: str, options: list[str], image_b64: str = None, ret
     while attempt <= retries:
         try:
             start_t = time.perf_counter()
+            headers["Authorization"] = f"Bearer {current_api_key()}"
             req = Request(GROQ_BASE_URL, data=req_data, headers=headers, method="POST")
             with urlopen(req, timeout=30) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
@@ -185,7 +189,7 @@ def solve_mcq(question_text: str, options: list[str], image_b64: str = None, ret
                 # Rate limiting is temporary and does not consume answer retries.
                 # Bound waiting so an unavailable account still pauses clearly.
                 if rate_limits >= 20 or rate_waited + sleep_sec > 900:
-                    raise RuntimeError("Groq rate-limit wait budget exhausted; resume after quota recovers.") from e
+                    raise RuntimeError("Automation paused because the Groq API limit was reached. Wait for quota to recover, or replace GROQ_API_KEY in .env with a key from an account that has available quota, then retry.") from e
                 rate_limits += 1
                 rate_waited += sleep_sec
                 log_warn(f"Rate limited by Groq. Waiting {sleep_sec:.1f}s before retrying the same question...")
