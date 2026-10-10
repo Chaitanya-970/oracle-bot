@@ -21,20 +21,28 @@ def maintain_session(page):
             if frame.is_detached():
                 continue
             dialogs = frame.locator(".ui-dialog:visible, [role='dialog']:visible, .t-Dialog:visible, .a-SessionTimeout:visible")
-            for dialog in dialogs.all():
+            # Snapshot actual nodes: indexed locators can rebind or wait for a
+            # disappeared modal during assessment navigation.
+            for dialog in dialogs.element_handles():
+                if not dialog.is_visible():
+                    continue
                 text = dialog.inner_text()
                 if not re.search(r"session|inactivity|inactive|logged out", text, re.I):
                     continue
                 if re.search(r"session (?:has )?expired|session (?:has )?ended|logged out", text, re.I):
                     raise SessionExpired("Oracle session expired. Sign in again in the browser.")
-                controls = dialog.locator("button, a, input[type='button'], input[type='submit']")
-                for el in controls.all():
+                controls = dialog.query_selector_all("button, a, input[type='button'], input[type='submit']")
+                for el in controls:
                     label = (el.get_attribute("value") or el.inner_text()).strip()
                     if re.fullmatch(r"(?:Extend(?: Session)?|Stay (?:Signed|Logged) In|Continue(?: Session)?|Keep (?:Session )?Alive|Yes|OK)", label, re.I):
                         if safe_click(el):
                             log_info("Extended Oracle session from the timeout warning.")
                             return True
+                        if not dialog.is_visible():
+                            return False
                         raise RuntimeError("Session extension button could not be clicked.")
+                if not dialog.is_visible():
+                    continue
                 raise RuntimeError("Session warning appeared, but its extension button was not recognized.")
         except SessionExpired:
             raise

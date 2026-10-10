@@ -42,10 +42,18 @@ def finish_assessment(page):
         if not wait_until(page, lambda: bool(re.search(RESULTS, page_text(page), re.I))):
             return fail(page, "Assessment submission did not reach a score/results screen.")
 
+    from bot.assessment_results import record_results
+    score = record_results(page)
+
     # On Score Summary (Page 192), click View Results if present to reveal Return to Course Lessons
     if matching_button(page, RETURN_COURSE) is None and click_button_by_text(page, [r"^View Results$"]):
         if not wait_until(page, lambda: matching_button(page, RETURN_COURSE) is not None):
             return fail(page, "View Results did not reveal a return control.")
+
+    result_score = record_results(page)
+    score = result_score if result_score is not None else score
+    if score is not None and score < 70:
+        return fail(page, f"Assessment scored {score}%, below the required 70%. Feedback recorded for retry.")
 
     if not click_button_by_text(page, RETURN_COURSE):
         return fail(page, "Results reached, but Return to Course was not found.")

@@ -93,6 +93,24 @@ class BrowserTests(unittest.TestCase):
         with self.assertRaises(SessionExpired):
             maintain_session(self.page)
 
+    def test_dialog_disappearing_during_session_check_does_not_wait(self):
+        self.page.set_content('<div role="dialog">Session will expire<button>Yes</button></div>')
+        real_frame = self.page.main_frame
+        frame = unittest.mock.MagicMock()
+        frame.is_detached.return_value = False
+        def snapshot(selector):
+            locator = real_frame.locator(selector)
+            if 'password' in selector:
+                return locator
+            handles = locator.element_handles()
+            self.page.evaluate("document.querySelector('[role=dialog]').remove()")
+            proxy = unittest.mock.MagicMock()
+            proxy.element_handles.return_value = handles
+            return proxy
+        frame.locator.side_effect = snapshot
+        with patch('bot.session.surfaces', return_value=[frame]), patch('bot.session.page_text', return_value=''):
+            self.assertFalse(maintain_session(self.page))
+
     def test_unknown_session_extension_control_is_not_swallowed(self):
         self.page.set_content('<div role="dialog">Your session will expire<button>Unrecognized</button></div>')
         with self.assertRaises(RuntimeError):
@@ -130,6 +148,15 @@ class BrowserTests(unittest.TestCase):
         self.assertTrue(is_quiz_landing_page(self.page))
         with patch('bot.runner.solve_current_quiz', return_value=True):
             self.assertTrue(runner.handle_quiz_landing_and_start(self.page))
+
+    def test_low_score_records_feedback_and_pauses(self):
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        from bot.assessment_results import feedback_for
+        self.page.set_content('<h1>Results Summary</h1><table class="t-Report-report"><tbody><tr><td headers="SCORE">66.67%</td></tr><tr><td headers="QUESTION">Arcs model exclusive OR?</td><td headers="USER_CHOICE">False</td><td headers="INCORRECT_RESPONSE_FEEDBACK">Incorrect</td></tr></tbody></table><button>Return to Course Lessons</button>')
+        with TemporaryDirectory() as directory, patch('bot.assessment_results.FEEDBACK_FILE', Path(directory)/'feedback.json'), patch('bot.runner.capture_diagnostic'):
+            self.assertFalse(runner.finish_assessment(self.page))
+            self.assertEqual(feedback_for('Arcs model exclusive OR?')[0]['answer'], 'False')
 
     def test_return_control_alone_is_not_success(self):
         self.page.set_content('<button>Exit</button>')

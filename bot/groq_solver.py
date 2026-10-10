@@ -118,6 +118,12 @@ def solve_mcq(question_text: str, options: list[str], image_b64: str = None, ret
     user_prompt = f"Question:\n{question_text.strip()}\n\nOptions:\n{options_formatted}\n\nSelect the correct option index (0 to {len(options)-1}):"
     user_prompt += "\nReturn a JSON array of indices. " + ("Multiple answers are allowed." if multiple else "Exactly one answer is allowed.")
 
+    from bot.assessment_results import feedback_for
+    feedback = feedback_for(question_text)
+    if feedback:
+        user_prompt += "\nOracle feedback from prior attempts on this exact question:\n" + json.dumps(feedback)
+        user_prompt += "\nThe previous submitted answer was incorrect. Reconsider using this feedback; option order may differ. For multi-select, the failed combination may contain some correct options."
+
     # Select model & construct messages
     if image_b64:
         model = GROQ_VISION_MODEL
