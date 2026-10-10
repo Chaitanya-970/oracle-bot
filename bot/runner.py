@@ -110,7 +110,7 @@ def solve_current_quiz(page):
 def handle_quiz_landing_and_start(page):
     maintain_session(page)
     if not is_quiz_start_modal(page):
-        if not click_button_by_text(page, [r"^Take an Assessment$"]):
+        if not click_button_by_text(page, [r"^Take an Assessment$", r"^Finish Assessment$", r"^Resume Assessment$"]):
             return fail(page, "Could not open assessment.")
         if not wait_until(page, lambda: is_quiz_start_modal(page) or is_assessment_question_page(page)):
             return fail(page, "Assessment did not show a Start dialog or question.")
@@ -158,6 +158,11 @@ def process_course_lessons(page):
                 if not wait_until(page, lambda: fingerprint(page) != before):
                     return fail(page, "Jump to the incomplete sidebar step made no progress.")
                 continue
+
+        if incomplete and "is-incomplete-assessment" in (incomplete[0].get_attribute("class") or ""):
+            if wait_until(page, lambda: is_quiz_landing_page(page) or is_assessment_question_page(page) or is_quiz_start_modal(page)):
+                continue
+            return fail(page, "Incomplete assessment opened without a usable assessment control.")
 
         if click_button_by_text(page, [r"^Save and Continue$", r"^Save Progress$"]):
             if not wait_until(page, lambda: fingerprint(page) != before):

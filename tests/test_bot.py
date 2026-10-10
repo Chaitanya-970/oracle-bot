@@ -92,6 +92,13 @@ class BrowserTests(unittest.TestCase):
             self.assertTrue(runner.process_course_lessons(self.page))
         self.assertEqual(visited, ['http://oracle.test/read', 'http://oracle.test/quiz'])
 
+    def test_resumable_assessment_uses_finish_assessment_opener(self):
+        from bot.apex_helpers import is_quiz_landing_page
+        self.page.set_content('''<a onclick="document.querySelector('div').style.display='block'">Finish Assessment</a><div role="dialog" style="display:none"><button onclick="document.body.innerHTML='Question 1 of 1'">Start</button></div>''')
+        self.assertTrue(is_quiz_landing_page(self.page))
+        with patch('bot.runner.solve_current_quiz', return_value=True):
+            self.assertTrue(runner.handle_quiz_landing_and_start(self.page))
+
     def test_return_control_alone_is_not_success(self):
         self.page.set_content('<button>Exit</button>')
         with patch('bot.runner.capture_diagnostic'):

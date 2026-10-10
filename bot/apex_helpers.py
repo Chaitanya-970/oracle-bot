@@ -119,7 +119,7 @@ def is_assessment_question_page(page):
 
 
 def is_quiz_landing_page(page):
-    return not is_assessment_question_page(page) and matching_button(page, [r"^Take an Assessment$"]) is not None
+    return not is_assessment_question_page(page) and matching_button(page, [r"^Take an Assessment$", r"^Finish Assessment$", r"^Resume Assessment$"]) is not None
 
 
 def is_quiz_start_modal(page):
