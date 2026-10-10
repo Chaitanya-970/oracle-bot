@@ -2,8 +2,26 @@ import base64
 import json
 import time
 import unittest
+import atexit
+import logging
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from playwright.sync_api import sync_playwright
+from bot import config
+
+# Keep intentional fixture failures and question records out of live logs.
+_test_logs = TemporaryDirectory(prefix='oracle-bot-tests-', ignore_cleanup_errors=True)
+config.LOGS_DIR = Path(_test_logs.name)
+config.DIAGNOSTICS_DIR = config.LOGS_DIR / 'diagnostics'
+config.DIAGNOSTICS_DIR.mkdir()
+
+def _close_test_logs():
+    logging.shutdown()
+    _test_logs.cleanup()
+
+atexit.register(_close_test_logs)
+
 from bot import runner
 from bot.apex_helpers import extract_question_and_options, click_button_by_text, option_text, is_step_active
 from bot.groq_solver import parse_option_indices, solve_with_session, solve_mcq
