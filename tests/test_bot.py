@@ -105,6 +105,17 @@ class BrowserTests(unittest.TestCase):
         self.assertTrue(self.page.evaluate('window.right'))
         self.assertIsNone(self.page.evaluate('window.wrong'))
 
+    def test_button_search_handles_disabled_hidden_and_input_controls(self):
+        self.page.set_content('''<button disabled>Save Progress</button><button style="display:none">Save Progress</button>
+          <input type="submit" value="Save Progress" onclick="window.saved=true;return false">''')
+        self.assertTrue(click_button_by_text(self.page, ['^Save Progress$']))
+        self.assertTrue(self.page.evaluate('window.saved'))
+
+    def test_button_labels_click_their_parent_control_once(self):
+        self.page.set_content('''<button onclick="window.clicks=(window.clicks||0)+1"><span class="t-Button-label">Submit Answer</span></button>''')
+        self.assertTrue(click_button_by_text(self.page, ['^Submit Answer$']))
+        self.assertEqual(self.page.evaluate('window.clicks'), 1)
+
     def test_native_session_confirmation(self):
         self.page.set_content('<p>Lesson</p>')
         self.assertTrue(self.page.evaluate("confirm('Your session will expire. Extend session?')"))

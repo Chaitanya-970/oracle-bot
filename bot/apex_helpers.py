@@ -63,14 +63,22 @@ def matching_button(page, patterns, modal_only=False):
             else:
                 roots = [dialogs.nth(i) for i in range(dialogs.count())] + [frame]
             for root in roots:
-                controls = root.locator("button, a, input[type='button'], input[type='submit'], span.t-Button-label")
-                for i in range(controls.count()):
-                    el = controls.nth(i)
-                    if not el.is_visible() or not el.is_enabled():
-                        continue
-                    text = (el.get_attribute("value") if el.evaluate("el => el.tagName === 'INPUT'")
-                            else el.inner_text()) or el.get_attribute("aria-label") or ""
-                    if any(re.search(p, text.strip(), re.I) for p in patterns):
+                controls = root.locator("button, a, input[type='button'], input[type='submit']")
+                # One DOM snapshot instead of several browser round trips for
+                # every control, including duplicate button-label spans.
+                indices = controls.evaluate_all("""(elements, patterns) => {
+                    const expressions = patterns.map(p => new RegExp(p, 'i'));
+                    return elements.flatMap((el, i) => {
+                        const text = (el.tagName === 'INPUT' ? el.value : el.innerText)
+                            || el.getAttribute('aria-label') || '';
+                        if (!el.getClientRects().length || getComputedStyle(el).visibility === 'hidden'
+                            || el.disabled || el.getAttribute('aria-disabled') === 'true') return [];
+                        return expressions.some(re => re.test(text.trim())) ? [i] : [];
+                    });
+                }""", patterns)
+                for index in indices:
+                    el = controls.nth(index)
+                    if el.is_visible() and el.is_enabled():
                         return el
         except Exception:
             continue
