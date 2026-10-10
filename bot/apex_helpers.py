@@ -1,6 +1,8 @@
 """Visible, frame-aware Oracle APEX interactions."""
 import base64
 import re
+from html import unescape
+from urllib.parse import urljoin
 
 
 def clean_apex_url(url: str) -> str:
@@ -9,7 +11,17 @@ def clean_apex_url(url: str) -> str:
 
 
 def surfaces(page):
-    return page.frames
+    return [frame for frame in page.frames if not frame.is_detached()]
+
+
+def option_text(value):
+    # APEX's aria-label can itself contain escaped HTML entities and <br> tags.
+    for _ in range(3):
+        decoded = unescape(value)
+        if decoded == value:
+            break
+        value = decoded
+    return re.sub(r'</?(?:br|p|div|span|b|strong|em|i|pre|code)(?:\s[^>]*)?\s*/?>', '\n', value, flags=re.I).strip()
 
 
 def visible_locators(page, selector):
@@ -119,7 +131,7 @@ def extract_question_and_options(page):
             options, locators = [], []
             for i in range(choices.count()):
                 choice = choices.nth(i)
-                label = (choice.get_attribute("aria-label") or choice.inner_text()).strip()
+                label = option_text(choice.get_attribute("aria-label") or choice.inner_text())
                 if label:
                     options.append(label)
                     locators.append(choice)
@@ -165,6 +177,10 @@ def is_step_active(step):
             return True
         link = step.locator("a, .t-WizardSteps-wrap").first
         if link.count():
+            href = link.get_attribute('href')
+            current_url = link.evaluate('el => el.ownerDocument.location.href')
+            if href and urljoin(current_url, href) == current_url:
+                return True
             link_classes = (link.get_attribute("class") or "").split()
             if any(c in link_classes for c in ("is-active", "is-selected", "is-current", "active")):
                 return True

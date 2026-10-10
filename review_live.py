@@ -29,7 +29,7 @@ def main():
                     if command == 'inspect':
                         capture_diagnostic(page, 'Live project review snapshot')
                     elif command == 'run':
-                        print('Traversal result:', bot.runner.walk_courses(page))
+                        print('Traversal result:', bot.runner.run_all_courses(page))
                     elif command == 'section':
                         print('Section result:', bot.runner.process_course_lessons(page))
                     elif command.startswith('goto '):

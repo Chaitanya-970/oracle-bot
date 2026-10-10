@@ -1,12 +1,18 @@
 """Cooperative session checks, always executed on Playwright's owner thread."""
 import re
 import time
+from playwright.sync_api import Error as PlaywrightError
 from bot.apex_helpers import surfaces, page_text, safe_click
 from bot.diagnostics import log_info
 
 
 class SessionExpired(RuntimeError):
     pass
+
+
+def transient_browser_error(exc):
+    return isinstance(exc, PlaywrightError) and bool(re.search(
+        r'frame was detached|execution context was destroyed|cannot find context|navigation|not attached', str(exc), re.I))
 
 
 def maintain_session(page):
@@ -32,8 +38,9 @@ def maintain_session(page):
                 raise RuntimeError("Session warning appeared, but its extension button was not recognized.")
         except SessionExpired:
             raise
-        except Exception:
-            continue
+        except PlaywrightError as exc:
+            if not transient_browser_error(exc):
+                raise
     text = page_text(page)
     if re.search(r"signon\.oracle\.com/(?:signin|login)|login\.oracle\.com", page.url, re.I):
         raise SessionExpired("Oracle returned to its sign-in service.")
@@ -45,8 +52,9 @@ def maintain_session(page):
                 raise SessionExpired("Oracle returned to the login page.")
         except SessionExpired:
             raise
-        except Exception:
-            continue
+        except PlaywrightError as exc:
+            if not transient_browser_error(exc):
+                raise
     return False
 
 
@@ -67,8 +75,9 @@ def wait_until(page, predicate, timeout=15):
         try:
             if predicate():
                 return True
-        except Exception:
-            pass
+        except PlaywrightError as exc:
+            if not transient_browser_error(exc):
+                raise
         page.wait_for_timeout(250)
     return False
 

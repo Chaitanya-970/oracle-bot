@@ -35,18 +35,21 @@ def fingerprint(page):
 def finish_assessment(page):
     maintain_session(page)
     if not re.search(RESULTS, page_text(page), re.I):
-        if click_button_by_text(page, [r"^Complete Assessment$", r"^Submit Assessment$"]):
-            session_wait(page, 0.5)
-            click_button_by_text(page, [r"^Complete Assessment$", r"^Submit Assessment$", r"^Yes$", r"^Confirm$"], modal_only=True)
-            wait_until(page, lambda: bool(re.search(RESULTS, page_text(page), re.I)))
+        if not click_button_by_text(page, [r"^Complete Assessment$", r"^Submit Assessment$"]):
+            return fail(page, "Assessment results were not confirmed and no completion control was found.")
+        session_wait(page, 0.5)
+        click_button_by_text(page, [r"^Complete Assessment$", r"^Submit Assessment$", r"^Yes$", r"^Confirm$"], modal_only=True)
+        if not wait_until(page, lambda: bool(re.search(RESULTS, page_text(page), re.I))):
+            return fail(page, "Assessment submission did not reach a score/results screen.")
 
     # On Score Summary (Page 192), click View Results if present to reveal Return to Course Lessons
-    if click_button_by_text(page, [r"^View Results$"]):
-        session_wait(page, 1.0)
+    if matching_button(page, RETURN_COURSE) is None and click_button_by_text(page, [r"^View Results$"]):
+        if not wait_until(page, lambda: matching_button(page, RETURN_COURSE) is not None):
+            return fail(page, "View Results did not reveal a return control.")
 
     if not click_button_by_text(page, RETURN_COURSE):
         return fail(page, "Results reached, but Return to Course was not found.")
-    if not wait_until(page, lambda: not re.search(RESULTS, page_text(page), re.I) or bool(wizard_steps(page) or section_controls(page))):
+    if not wait_until(page, lambda: bool(wizard_steps(page) or section_controls(page) or course_controls(page))):
         return fail(page, "Return to Course did not leave the assessment results.")
     log_success("Assessment submitted; results confirmed and returned to course.")
     return True
@@ -82,8 +85,7 @@ def solve_current_quiz(page):
         if not indices or any(type(i) is not int or i < 0 or i >= len(locators) for i in indices):
             return fail(page, "Invalid answer indices; nothing submitted.")
         if not multiple and len(indices) > 1:
-            log_warn(f"Multiple answers {indices} returned for single-choice; selecting primary option [{indices[0]}].")
-            indices = [indices[0]]
+            return fail(page, "Multiple answers returned for a single-choice question; nothing submitted.")
         for i, loc in enumerate(locators):
             checked = loc.get_attribute("aria-checked") == "true"
             if (i in indices and not checked) or (multiple and i not in indices and checked):
@@ -220,16 +222,7 @@ def walk_courses(page, depth=0):
     sections = section_controls(page) if not classes else []
     items = classes or sections
     if not items:
-        res = process_course_lessons(page)
-        if not res:
-            return False
-        if depth == 0:
-            log_info("Section completed! Navigating back to continue remaining sections/courses...")
-            if not click_button_by_text(page, RETURN_COURSE + [r"^Exit$", r"^Taking a Class$", r"^My Classes$"]):
-                page.goto(ORACLE_HOME_URL, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
-            session_wait(page, STEP_DELAY)
-            return walk_courses(page, depth=0)
-        return True
+        return process_course_lessons(page)
     kind = "course" if classes else "section"
     # Snapshot labels and indices, never reuse locators across navigation.
     labels = [item_label(item) for _, item in items]
@@ -286,11 +279,23 @@ def walk_courses(page, depth=0):
                     if badge.count():
                         percent = re.search(r'(\d+)\s*%', badge.inner_text())
                         if percent and int(percent.group(1)) < 100:
-                            log_warn(f"Oracle still reports {percent.group(1)}% for {label}; moving forward.")
-            except Exception:
-                pass
+                            return fail(page, f"Oracle still reports {percent.group(1)}% for {label}; section completion was not confirmed.")
+            except Exception as exc:
+                return fail(page, f"Could not verify section status for {label}: {exc}")
     log_success(f"Processed all {len(labels)} {kind} entries in this list.")
     return True
+
+
+def run_all_courses(page):
+    """Finish an in-progress section once, then perform one dashboard sweep."""
+    maintain_session(page)
+    if not course_controls(page):
+        if not section_controls(page) and not process_course_lessons(page):
+            return False
+        page.goto(ORACLE_HOME_URL, wait_until='domcontentloaded', timeout=PAGE_LOAD_TIMEOUT)
+        if not wait_until(page, lambda: bool(course_controls(page))):
+            return fail(page, 'Could not reach the Classes dashboard to run all courses.')
+    return walk_courses(page)
 
 
 def run_oracle_bot():
@@ -331,7 +336,7 @@ def run_oracle_bot():
             input("Sign in and open Classes or the course outline in Chrome, then press Enter here: ")
             while True:
                 try:
-                    if walk_courses(page):
+                    if run_all_courses(page):
                         log_success("Course traversal finished. Check Oracle's completion indicators for the final status.")
                         input("Press Enter to save the session and close Chrome: ")
                         break

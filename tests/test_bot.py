@@ -5,12 +5,23 @@ import unittest
 from unittest.mock import patch
 from playwright.sync_api import sync_playwright
 from bot import runner
-from bot.apex_helpers import extract_question_and_options, click_button_by_text
-from bot.groq_solver import parse_option_indices, solve_with_session
+from bot.apex_helpers import extract_question_and_options, click_button_by_text, option_text, is_step_active
+from bot.groq_solver import parse_option_indices, solve_with_session, solve_mcq
 from bot.session import maintain_session, session_wait, SessionExpired, native_dialog
 
 
 class ParserTests(unittest.TestCase):
+    def test_nested_apex_entities(self):
+        self.assertEqual(option_text('SELECT&amp;#x20;id&amp;#x20;&amp;#x3C;5&amp;#x3B;'), 'SELECT id <5;')
+        self.assertEqual(option_text('SELECT&#x20;id<br />FROM employees;'), 'SELECT id\nFROM employees;')
+
+    def test_single_choice_never_guesses_from_multiple_indices(self):
+        response = unittest.mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"choices":[{"message":{"content":"[0,1]"}}]}'
+        with patch('bot.groq_solver.GROQ_API_KEY', 'test-key'), patch('bot.groq_solver.urlopen', return_value=response), patch('bot.groq_solver.time.sleep'):
+            with self.assertRaises(RuntimeError):
+                solve_mcq('Which two are correct?', ['A','B'], retries=1, multiple=False)
+
     def test_valid_outputs(self):
         for text, answer in [('0', [0]), ('[0,2]', [0, 2]), ('0, 2', [0, 2]), ('B', [1]), ('```json\n[1]\n```', [1])]:
             self.assertEqual(parse_option_indices(text, 4), answer)
@@ -49,6 +60,26 @@ class BrowserTests(unittest.TestCase):
         self.page.set_content('<div role="dialog">Your session has expired<button>OK</button></div>')
         with self.assertRaises(SessionExpired):
             maintain_session(self.page)
+
+    def test_unknown_session_extension_control_is_not_swallowed(self):
+        self.page.set_content('<div role="dialog">Your session will expire<button>Unrecognized</button></div>')
+        with self.assertRaises(RuntimeError):
+            maintain_session(self.page)
+
+    def test_active_sidebar_url_needs_no_jump(self):
+        self.page.route('http://oracle.test/current', lambda route: route.fulfill(body='<li class="t-WizardSteps-step"><a href="/current">Current</a></li>', content_type='text/html'))
+        self.page.goto('http://oracle.test/current')
+        self.assertTrue(is_step_active(self.page.locator('li')))
+
+    def test_return_control_alone_is_not_success(self):
+        self.page.set_content('<button>Exit</button>')
+        with patch('bot.runner.capture_diagnostic'):
+            self.assertFalse(runner.finish_assessment(self.page))
+
+    def test_section_entry_does_not_recurse_forever(self):
+        self.page.set_content('<li class="t-WizardSteps-step is-complete">Done</li>')
+        with patch('bot.runner.STEP_DELAY', 0):
+            self.assertTrue(runner.walk_courses(self.page))
 
     def test_warning_during_ai_request(self):
         self.page.set_content('''<script>setTimeout(()=>{document.body.innerHTML =
