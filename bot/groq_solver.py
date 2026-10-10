@@ -84,6 +84,19 @@ def parse_option_indices(raw_output: str, num_options: int) -> list[int]:
     raise ValueError(f"Could not parse valid option index from Groq response: {raw_output!r}")
 
 
+def rate_limit_delay(body, headers=None):
+    """Groq can report compound durations, such as 1m16.896s."""
+    match = re.search(r"try again in\s+((?:[\d.]+(?:ms|h|m|s)\s*)+)", body, re.I)
+    if match:
+        units = {"h": 3600, "m": 60, "s": 1, "ms": .001}
+        return sum(float(value) * units[unit.lower()] for value, unit in
+                   re.findall(r"([\d.]+)(ms|h|m|s)", match.group(1), re.I)) + .5
+    try:
+        return max(float((headers or {}).get("Retry-After", 3.5)), 0) + .5
+    except (ValueError, TypeError):
+        return 3.5
+
+
 def solve_mcq(question_text: str, options: list[str], image_b64: str = None, retries: int = 3, multiple: bool = False) -> list[int]:
     """
     Sends question and options to Groq API.
@@ -142,7 +155,10 @@ def solve_mcq(question_text: str, options: list[str], image_b64: str = None, ret
     }
 
     last_error = None
-    for attempt in range(1, retries + 1):
+    attempt = 1
+    rate_limits = 0
+    rate_waited = 0.0
+    while attempt <= retries:
         try:
             start_t = time.perf_counter()
             req = Request(GROQ_BASE_URL, data=req_data, headers=headers, method="POST")
@@ -164,19 +180,26 @@ def solve_mcq(question_text: str, options: list[str], image_b64: str = None, ret
             log_warn(f"Groq attempt {attempt} failed: {last_error}")
             if e.code not in (408, 429) and e.code < 500:
                 raise RuntimeError(last_error) from e
-            if e.code == 429: # Rate limit
-                sleep_sec = max(3.5 * attempt, 3.5)
-                match = re.search(r"try again in ([\d\.]+)s", err_body, re.I)
-                if match:
-                    sleep_sec = max(float(match.group(1)) + 0.5, sleep_sec)
-                log_warn(f"Rate limited by Groq. Pausing {sleep_sec:.1f}s before retry {attempt+1}...")
+            if e.code == 429:
+                sleep_sec = max(rate_limit_delay(err_body, e.headers), 3.5)
+                # Rate limiting is temporary and does not consume answer retries.
+                # Bound waiting so an unavailable account still pauses clearly.
+                if rate_limits >= 20 or rate_waited + sleep_sec > 900:
+                    raise RuntimeError("Groq rate-limit wait budget exhausted; resume after quota recovers.") from e
+                rate_limits += 1
+                rate_waited += sleep_sec
+                log_warn(f"Rate limited by Groq. Waiting {sleep_sec:.1f}s before retrying the same question...")
                 time.sleep(sleep_sec)
-            else:
+                continue
+            if attempt < retries:
                 time.sleep(1.5)
+            attempt += 1
         except Exception as e:
             last_error = str(e)
             log_warn(f"Groq attempt {attempt} error: {last_error}")
-            time.sleep(1.5)
+            if attempt < retries:
+                time.sleep(1.5)
+            attempt += 1
 
     raise RuntimeError(f"All Groq API attempts failed. Last error: {last_error}")
 

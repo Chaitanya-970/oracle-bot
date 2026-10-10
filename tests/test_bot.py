@@ -22,6 +22,22 @@ class ParserTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 solve_mcq('Which two are correct?', ['A','B'], retries=1, multiple=False)
 
+    def test_compound_rate_limit_wait(self):
+        from bot.groq_solver import rate_limit_delay
+        self.assertAlmostEqual(rate_limit_delay('Please try again in 1m16.896s.'), 77.396)
+        self.assertAlmostEqual(rate_limit_delay('try again in 32.832s'), 33.332)
+        self.assertEqual(rate_limit_delay('Too many requests', {'Retry-After': '60'}), 60.5)
+
+    def test_rate_limit_does_not_consume_answer_retry(self):
+        from urllib.error import HTTPError
+        from io import BytesIO
+        error = HTTPError('http://test', 429, 'rate limited', {}, BytesIO(b'Please try again in 1m16.896s.'))
+        response = unittest.mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"choices":[{"message":{"content":"[0]"}}]}'
+        with patch('bot.groq_solver.GROQ_API_KEY', 'test-key'), patch('bot.groq_solver.urlopen', side_effect=[error, response]), patch('bot.groq_solver.time.sleep') as sleep:
+            self.assertEqual(solve_mcq('Question', ['A','B'], retries=1), [0])
+        sleep.assert_called_once_with(77.396)
+
     def test_valid_outputs(self):
         for text, answer in [('0', [0]), ('[0,2]', [0, 2]), ('0, 2', [0, 2]), ('B', [1]), ('```json\n[1]\n```', [1])]:
             self.assertEqual(parse_option_indices(text, 4), answer)
