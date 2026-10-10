@@ -153,8 +153,11 @@ def process_course_lessons(page):
                     link.scroll_into_view_if_needed(timeout=2000)
                 except Exception:
                     pass
-                if (safe_click(link) or safe_click(target)) and wait_until(page, lambda: fingerprint(page) != before):
-                    continue
+                if not (safe_click(link) or safe_click(target)):
+                    return fail(page, "Could not jump to the incomplete sidebar step.")
+                if not wait_until(page, lambda: fingerprint(page) != before):
+                    return fail(page, "Jump to the incomplete sidebar step made no progress.")
+                continue
 
         if click_button_by_text(page, [r"^Save and Continue$", r"^Save Progress$"]):
             if not wait_until(page, lambda: fingerprint(page) != before):

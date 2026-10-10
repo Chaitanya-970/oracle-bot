@@ -71,6 +71,27 @@ class BrowserTests(unittest.TestCase):
         self.page.goto('http://oracle.test/current')
         self.assertTrue(is_step_active(self.page.locator('li')))
 
+    def test_oracle_sidebar_marks_every_entry_current(self):
+        self.page.set_content('<ul><li class="t-WizardSteps-step is-complete is-active-module" aria-current="step"><a href="/read">Read</a></li><li class="t-WizardSteps-step is-incomplete-assessment" aria-current="step"><a href="/quiz">Quiz</a></li></ul>')
+        steps = self.page.locator('li')
+        self.assertTrue(is_step_active(steps.nth(0)))
+        self.assertFalse(is_step_active(steps.nth(1)))
+
+    def test_completed_lesson_jumps_directly_to_remaining_step(self):
+        visited = []
+        def route(request):
+            visited.append(request.request.url)
+            if request.request.url.endswith('/quiz'):
+                body = '<li class="t-WizardSteps-step is-complete">Done</li>'
+            else:
+                body = '<li class="t-WizardSteps-step is-complete is-active-module" aria-current="step"><a href="/read">Read</a></li><li class="t-WizardSteps-step" aria-current="step"><a href="/quiz">Quiz</a></li><a href="/wrong">Save and Continue</a>'
+            request.fulfill(body=body, content_type='text/html')
+        self.page.route('http://oracle.test/**', route)
+        self.page.goto('http://oracle.test/read')
+        with patch('bot.runner.STEP_DELAY', 0):
+            self.assertTrue(runner.process_course_lessons(self.page))
+        self.assertEqual(visited, ['http://oracle.test/read', 'http://oracle.test/quiz'])
+
     def test_return_control_alone_is_not_success(self):
         self.page.set_content('<button>Exit</button>')
         with patch('bot.runner.capture_diagnostic'):

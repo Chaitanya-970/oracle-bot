@@ -170,7 +170,7 @@ def wizard_steps(page):
 def step_complete(step):
     try:
         classes = (step.get_attribute("class") or "").split()
-        return ("is-complete" in classes or
+        return ("is-complete" in classes or "is-complete-assessment" in classes or
                 step.locator(".fa-check, .fa-check-circle, .fa-check-circle-o, [class*='check']").count() > 0)
     except Exception:
         return False
@@ -178,25 +178,23 @@ def step_complete(step):
 
 def is_step_active(step):
     try:
-        classes = (step.get_attribute("class") or "").split()
-        if any(c in classes for c in ("is-active", "is-selected", "is-current", "active")):
-            return True
-        if step.get_attribute("aria-current") in ("step", "page", "true"):
-            return True
-        link = step.locator("a, .t-WizardSteps-wrap").first
-        if link.count():
-            href = link.get_attribute('href')
-            current_url = link.evaluate('el => el.ownerDocument.location.href')
-            if href and urljoin(current_url, href) == current_url:
-                return True
-            link_classes = (link.get_attribute("class") or "").split()
-            if any(c in link_classes for c in ("is-active", "is-selected", "is-current", "active")):
-                return True
-            if link.get_attribute("aria-current") in ("step", "page", "true"):
-                return True
+        # Oracle sets aria-current on every entry; its module class identifies
+        # the actual displayed lesson. Prefer that explicit marker globally.
+        state = step.evaluate("""el => {
+            const active = el.ownerDocument.querySelector('li.t-WizardSteps-step.is-active-module');
+            if (active) return active === el;
+            const markers = ['is-active', 'is-selected', 'is-current', 'active'];
+            const link = el.querySelector('a, .t-WizardSteps-wrap');
+            if (markers.some(c => el.classList.contains(c) || link?.classList.contains(c))) return true;
+            if (link?.href === el.ownerDocument.location.href) return true;
+            const marked = [...el.ownerDocument.querySelectorAll('li.t-WizardSteps-step')]
+                .filter(item => [item, item.querySelector('a')].some(node =>
+                    ['step', 'page', 'true'].includes(node?.getAttribute('aria-current'))));
+            return marked.length === 1 && marked[0] === el;
+        }""")
+        return bool(state)
     except Exception:
-        pass
-    return False
+        return False
 
 
 def is_multiple_choice_question(page, question_text, locators):
