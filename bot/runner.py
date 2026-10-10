@@ -6,7 +6,7 @@ from bot.diagnostics import log_info, log_success, log_warn, log_error, capture_
 from bot.apex_helpers import (safe_click, click_button_by_text, matching_button,
     is_assessment_question_page, is_quiz_landing_page, is_quiz_start_modal,
     extract_question_and_options, visible_locators, page_text, question_identity,
-    wizard_steps, step_complete)
+    wizard_steps, step_complete, is_multiple_choice_question)
 from bot.groq_solver import solve_with_session
 from bot.session import maintain_session, session_wait, wait_until, native_dialog, SessionExpired
 
@@ -64,8 +64,8 @@ def solve_current_quiz(page):
         text, image, options, locators = extract_question_and_options(page)
         if not text or len(options) < 2:
             return fail(page, "Could not extract the question and its answer choices.")
-        multiple = any(loc.get_attribute("role") == "checkbox" for loc in locators)
-        log_info(f"Solving {identity[1]} ({len(options)} options).")
+        multiple = is_multiple_choice_question(page, text, locators)
+        log_info(f"Solving {identity[1]} ({len(options)} options, multiple={multiple}).")
         try:
             indices = solve_with_session(page, text, options, image, multiple)
         except SessionExpired:
@@ -81,6 +81,8 @@ def solve_current_quiz(page):
             return fail(page, "Answer choices changed while solving.")
         if not indices or any(type(i) is not int or i < 0 or i >= len(locators) for i in indices):
             return fail(page, "Invalid answer indices; nothing submitted.")
+        if len(indices) > 1:
+            multiple = True
         if not multiple and len(indices) != 1:
             return fail(page, "Multiple answers returned for a radio question.")
         for i, loc in enumerate(locators):

@@ -155,6 +155,11 @@ def solve_mcq(question_text: str, options: list[str], image_b64: str = None, ret
 
             indices = parse_option_indices(raw_answer, len(options))
             if not multiple and len(indices) != 1:
+                if re.search(r"select all that apply|choose (?:two|three|four|five|all|\d+)|which (?:two|three|four|five|\d+)", question_text, re.I):
+                    return indices
+                if attempt == retries:
+                    log_warn(f"Multiple indices returned for single-choice; selecting primary option {indices[0]}.")
+                    return [indices[0]]
                 raise ValueError("Multiple indices returned for a single-choice question.")
             return indices
 

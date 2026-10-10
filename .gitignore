@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Internal Architecture & Handoff
+handoff.md
+
 # Browser Persistent Data & Authentication States
 browser_profile/
 auth_state.json

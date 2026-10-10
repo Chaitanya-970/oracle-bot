@@ -154,3 +154,20 @@ def step_complete(step):
                 step.locator(".fa-check, .fa-check-circle, .fa-check-circle-o, [class*='check']").count() > 0)
     except Exception:
         return False
+
+
+def is_multiple_choice_question(page, question_text, locators):
+    for loc in locators:
+        try:
+            if loc.get_attribute("role") == "checkbox":
+                return True
+            if loc.get_attribute("data-response-type") == "2":
+                return True
+            icon = loc.locator(".choice-Icon, [class*='fa-']").first
+            if icon.count() and "square" in (icon.get_attribute("class") or ""):
+                return True
+        except Exception:
+            continue
+    full_text = f"{question_text} {page_text(page)}"
+    return bool(re.search(r"select all that apply|choose (?:two|three|four|five|all|\d+)|which (?:two|three|four|five|\d+)", full_text, re.I))
+
