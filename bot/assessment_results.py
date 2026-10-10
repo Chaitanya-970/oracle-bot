@@ -8,6 +8,7 @@ FEEDBACK_FILE = LOGS_DIR / "assessment_feedback.json"
 
 
 def normalized(text):
+    text = re.sub(r"^\s*Question\s+\d+\s+of\s+\d+\s*", "", text, flags=re.I)
     return " ".join(text.casefold().split())
 
 

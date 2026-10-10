@@ -1,5 +1,6 @@
 """Bounded course traversal with verified transitions and explicit failures."""
 import re
+import json
 from playwright.sync_api import sync_playwright
 from bot.config import BROWSER_PROFILE_DIR, BROWSER_CHANNEL, HEADLESS, STEP_DELAY, PAGE_LOAD_TIMEOUT, ORACLE_HOME_URL
 from bot.diagnostics import log_info, log_success, log_warn, log_error, capture_diagnostic
@@ -76,6 +77,9 @@ def solve_current_quiz(page):
         if not text or len(options) < 2:
             return fail(page, "Could not extract the question and its answer choices.")
         multiple = is_multiple_choice_question(page, text, locators)
+        from bot.config import LOGS_DIR
+        with (LOGS_DIR / 'questions.jsonl').open('a', encoding='utf-8') as audit:
+            audit.write(json.dumps({'identity': identity, 'question': text, 'options': options, 'multiple': multiple}, ensure_ascii=False) + '\n')
         log_info(f"Solving {identity[1]} ({len(options)} options, multiple={multiple}).")
         try:
             indices = solve_with_session(page, text, options, image, multiple)

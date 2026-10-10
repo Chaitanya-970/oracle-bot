@@ -54,6 +54,10 @@ class ParserTests(unittest.TestCase):
         with patch('bot.config._file_loaded_keys', set()), patch('bot.config.GROQ_API_KEY', 'external-key'):
             self.assertEqual(current_api_key(), 'external-key')
 
+    def test_feedback_matches_question_despite_number_prefix(self):
+        from bot.assessment_results import normalized
+        self.assertEqual(normalized('Question 3 of 15\nArcs model an Exclusive OR constraint.'), normalized('Arcs model an Exclusive OR constraint.'))
+
     def test_valid_outputs(self):
         for text, answer in [('0', [0]), ('[0,2]', [0, 2]), ('0, 2', [0, 2]), ('B', [1]), ('```json\n[1]\n```', [1])]:
             self.assertEqual(parse_option_indices(text, 4), answer)
