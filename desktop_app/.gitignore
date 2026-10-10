@@ -1,0 +1,5 @@
+output/
+.build-env/
+__pycache__/
+engine/bot/__pycache__/
+engine/logs/

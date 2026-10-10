@@ -1,0 +1,1 @@
+"""Pinned desktop engine snapshot."""

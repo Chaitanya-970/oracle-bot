@@ -2,9 +2,12 @@
 .env
 .env.*
 !.env.example
+*.pem
+*.key
 
 # Internal Architecture & Handoff
 handoff.md
+handoof.md
 
 # Browser Persistent Data & Authentication States
 browser_profile/
@@ -21,13 +24,27 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 .venv/
 venv/
 env/
 ENV/
+.build-env/
+
+# Generated packages and build output (publish desktop ZIPs as release assets)
+build/
+dist/
+output/
+*.egg-info/
 
 # Operating System & IDE
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+Desktop.ini
+*.tmp
+*.bak

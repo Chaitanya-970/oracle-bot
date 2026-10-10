@@ -1,0 +1,60 @@
+name: Bug report
+description: Report an error or something that does not work.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. I’ll investigate and fix it.
+        Do not include API keys, your .env file, or signed browser-session URLs.
+  - type: dropdown
+    id: setup
+    attributes:
+      label: How are you running the bot?
+      options:
+        - Windows desktop app
+        - Python source
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system
+      placeholder: Windows 11, macOS version, or Linux distribution
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or download date
+      description: ZIP filename, source commit, or unknown.
+  - type: input
+    id: course
+    attributes:
+      label: Course and assessment
+      placeholder: Database Foundations, Section 6, Quiz 2
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do before the problem happened?
+      description: List the steps so I can try the same thing.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: Include the exact error message if one appeared.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Relevant screenshot or log excerpt
+      description: Remove keys, account details, and browser-session URLs before posting.
