@@ -102,7 +102,7 @@ Read the message in the app or terminal first.
 - **API limit:** wait for quota or provide a replacement key as explained above.
 - **Sign-in needed:** sign in in the bot's browser, open Classes, then select Continue or press Enter.
 - **Network error:** restore your connection, then retry.
-- **Score below 70%:** the bot pauses and saves Oracle's available feedback. Open Classes and retry. Feedback helps the next attempt avoid previous wrong answers, but does not guarantee a passing score.
+- **Score below 70%:** the bot pauses and saves Oracle's available feedback. **First return to the course outline or Classes in the bot's browser. Then click Continue in the desktop app (or press Enter in the source terminal).** Feedback helps the next attempt avoid previous wrong answers, but does not guarantee a passing score. The desktop app keeps the recovery instructions in its main status above the log until you continue.
 - **Unexpected page:** inspect the browser and diagnostic files before continuing.
 
 Recognized session-extension prompts are handled automatically. If the session has already expired, you must sign in yourself. Completion is checked using Oracle's progress indicators and assessment results.

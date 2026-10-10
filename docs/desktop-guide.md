@@ -43,6 +43,10 @@ Changing the key keeps the browser open. If Oracle expires the login or you rest
 
 Keys are held in memory for the run and are not included in the ZIP. Closing the app means you must supply a key again.
 
+## If a quiz scores below 70%
+
+**First return to the course outline or Classes in the bot's browser. Then click Continue in the app.** The bot uses available feedback when retrying. The pause reason and recovery instructions stay in the main status above the log, so you do not need to search through earlier log messages.
+
 ## Completion and files
 
 At completion, the status says **Finished. Congratulations!** and offers the GitHub repository link. Check your final scores and course status in Oracle.

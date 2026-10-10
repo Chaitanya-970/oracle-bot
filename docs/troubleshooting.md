@@ -10,7 +10,7 @@ Read the status and latest log. A quota wait, a login prompt, a failed quiz, and
 | Invalid key / authentication failure | Check the key and its account. Supply a valid key. |
 | Network / DNS error | Restore internet access, then Continue or Enter to retry. |
 | Oracle sign-in needed | Sign in in the bot's browser, open Classes, then Continue or Enter. |
-| Score below 70% | Open Classes and retry; the bot uses recorded feedback where available. |
+| Score below 70% | First return to the course outline or Classes in the bot's browser. Then click Continue in the app or press Enter in the terminal. The bot uses recorded feedback where available. |
 | Unexpected page | Inspect the browser and diagnostic files before retrying. |
 | Profile already in use | Close the other browser using this bot profile, then retry. |
 | Finished / completed traversal | Check final Oracle scores and progress; no restart is needed. |
