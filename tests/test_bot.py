@@ -146,6 +146,18 @@ class BrowserTests(unittest.TestCase):
             self.assertTrue(runner.process_course_lessons(self.page))
         self.assertEqual(visited, ['http://oracle.test/read', 'http://oracle.test/quiz'])
 
+    def test_question_identity_ignores_apex_pagination_reset(self):
+        from bot.apex_helpers import question_identity
+        self.page.route('http://oracle.test/**', lambda route: route.fulfill(
+            body='<div region-id="question-Text">Question 6 of 50 Same question</div>',
+            content_type='text/html'))
+        self.page.goto('http://oracle.test/f?p=63000:190:123:::RP::')
+        before = question_identity(self.page)
+        self.page.evaluate("history.replaceState(null, '', '/f?p=63000:190:123:::::')")
+        self.assertEqual(before, question_identity(self.page))
+        self.page.locator('[region-id="question-Text"]').evaluate("el => el.textContent='Question 7 of 50 Different question'")
+        self.assertNotEqual(before, question_identity(self.page))
+
     def test_completed_quiz_landing_does_not_start_another_attempt(self):
         visited = []
         def route(request):

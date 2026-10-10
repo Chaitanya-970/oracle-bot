@@ -108,7 +108,10 @@ def question_identity(page):
             if match:
                 regions = frame.locator('[region-id="question-Text"]:visible, [id*="question-Text"]:visible')
                 text = regions.first.inner_text() if regions.count() else body
-                return (frame.url, match.group(0), text)
+                # APEX removes its reset-pagination flag after rendering.
+                # That URL cleanup does not change the assessment question.
+                stable_url = frame.url.replace(":RP:", "::")
+                return (stable_url, match.group(0), text)
         except Exception:
             pass
     return None
