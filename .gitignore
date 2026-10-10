@@ -1,0 +1,30 @@
+# Environment and Secrets (CRITICAL: Do not commit API keys or credentials)
+.env
+.env.*
+!.env.example
+
+# Browser Persistent Data & Authentication States
+browser_profile/
+auth_state.json
+OracleQuizRunnerFirefoxProfile/
+
+# Diagnostic Telemetry, Screenshots, and Logs
+logs/
+quiz_logs/
+*.log
+
+# Python Artifacts & Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+ENV/
+
+# Operating System & IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
