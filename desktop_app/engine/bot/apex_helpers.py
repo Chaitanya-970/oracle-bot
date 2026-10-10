@@ -219,4 +219,3 @@ def is_multiple_choice_question(page, question_text, locators):
     if re.search(r"just one correct", full_text, re.I):
         return False
     return bool(re.search(r"select all that apply|choose (?:two|three|four|five|all|\d+)|which (?:two|three|four|five|\d+)", full_text, re.I))
-
