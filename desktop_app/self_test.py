@@ -44,6 +44,10 @@ def run():
         assert app.repo_link.bind('<Button-1>')
         assert app.log.tk.call(app.log._w, 'tag', 'bind', 'repository', '<Button-1>')
         assert 'Finished' in app.detail.get()
+        app.events.put({'type': 'state', 'state': 'recovering', 'text': 'Retrying automatically in 5 seconds; no Continue click is needed.'})
+        app.poll()
+        assert str(app.continue_button['state']) == 'disabled'
+        assert 'automatically' in app.status.get()
         root.destroy()
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)

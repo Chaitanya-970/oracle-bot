@@ -46,10 +46,17 @@ def finish_assessment(page):
     from bot.assessment_results import record_results
     score = record_results(page)
 
-    # On Score Summary (Page 192), click View Results if present to reveal Return to Course Lessons
-    if matching_button(page, RETURN_COURSE) is None and click_button_by_text(page, [r"^View Results$"]):
-        if not wait_until(page, lambda: matching_button(page, RETURN_COURSE) is not None):
-            return fail(page, "View Results did not reveal a return control.")
+    # Retry only results navigation, never submission or starting a new attempt.
+    for attempt in range(3):
+        if matching_button(page, RETURN_COURSE) is not None:
+            break
+        if attempt:
+            log_info(f"Oracle results are still loading; retrying View Results ({attempt + 1}/3).")
+        click_button_by_text(page, [r"^View Results$"])
+        if wait_until(page, lambda: matching_button(page, RETURN_COURSE) is not None, timeout=15):
+            break
+    else:
+        return fail(page, "The assessment was submitted, but Oracle did not load its return-to-course control after three results-navigation waits. Select View Results in the browser, wait for the results page, then select Continue. Do not start a new assessment.")
 
     result_score = record_results(page)
     score = result_score if result_score is not None else score
@@ -62,6 +69,24 @@ def finish_assessment(page):
         return fail(page, "Return to Course did not leave the assessment results.")
     log_success("Assessment submitted; results confirmed and returned to course.")
     return True
+
+
+
+def selection_matches(locators, indices):
+    for i, loc in enumerate(locators):
+        state = loc.get_attribute("aria-checked", timeout=1000)
+        if state is not None and (state == "true") != (i in indices):
+            return False
+    return True
+
+
+def lesson_control_ready(page):
+    if matching_button(page, [r"^Save and Continue$", r"^Save Progress$"]) is not None:
+        return True
+    if is_quiz_landing_page(page) or is_assessment_question_page(page) or is_quiz_start_modal(page):
+        return True
+    steps = wizard_steps(page)
+    return bool(steps and all(step_complete(item) for _, item in steps))
 
 
 def solve_current_quiz(page):
@@ -103,10 +128,11 @@ def solve_current_quiz(page):
             if (i in indices and not checked) or (multiple and i not in indices and checked):
                 if not safe_click(loc):
                     return fail(page, f"Could not select/deselect answer {i}.")
-        for i, loc in enumerate(locators):
-            state = loc.get_attribute("aria-checked")
-            if state is not None and (state == "true") != (i in indices):
-                return fail(page, f"Answer {i} did not reach the requested selection state.")
+        # Oracle may update aria-checked asynchronously after a successful click.
+        # Wait without clicking again: another click could toggle a checkbox off.
+        if not wait_until(page, lambda: question_identity(page) == identity and
+                          selection_matches(locators, indices), timeout=10):
+            return fail(page, "Answer selection did not settle within 10 seconds; no answer was submitted. Wait for Oracle to respond, then select Continue.")
         seen.add(identity)
         session_wait(page, 0.5)
         if not click_button_by_text(page, [r"^Submit Answer$", r"^Next Question$", r"^Next$"]):
@@ -170,6 +196,13 @@ def process_course_lessons(page):
             continue
         before = fingerprint(page)
         incomplete = [item for _, item in steps if not step_complete(item)]
+        if (incomplete and is_step_active(incomplete[0]) and
+                "is-incomplete-assessment" not in (incomplete[0].get_attribute("class") or "") and
+                not lesson_control_ready(page)):
+            log_info("Waiting for Oracle lesson controls to finish loading (up to 60 seconds).")
+            if wait_until(page, lambda: lesson_control_ready(page), timeout=60):
+                continue  # Reacquire sidebar state after the delayed render.
+            return fail(page, "Oracle lesson controls did not become ready within 60 seconds. If the PDF says Failed to load PDF document, reload that lesson or check your connection. Wait for Save and Continue to become available, then select Continue.")
         if incomplete:
             target = incomplete[0]
             # If the first incomplete step is not already the active step, jump directly to it!
@@ -191,9 +224,15 @@ def process_course_lessons(page):
                 continue
             return fail(page, "Incomplete assessment opened without a usable assessment control.")
 
-        if click_button_by_text(page, [r"^Save and Continue$", r"^Save Progress$"]):
-            if not wait_until(page, lambda: fingerprint(page) != before):
-                return fail(page, "Save action did not change the lesson or completion status.")
+        save_control = matching_button(page, [r"^Save and Continue$", r"^Save Progress$"])
+        if save_control is not None:
+            clicked = safe_click(save_control)
+            # A click can time out after dispatch while Oracle still navigates.
+            # Observe the result instead of reopening the same sidebar lesson.
+            if not wait_until(page, lambda: fingerprint(page) != before, timeout=30):
+                reason = ("Oracle did not confirm saving this lesson within 30 seconds." if clicked else
+                          "Oracle's Save and Continue control could not be clicked and the lesson did not advance.")
+                return fail(page, reason + " Wait for the lesson to finish loading, then select Continue to retry. No completion was assumed.")
             log_info("Save action changed the course page; checking completion.")
             continue
         if incomplete:

@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
-from desktop_app.worker import replacement_ready, error_reason, pause_message, display_log, redact
+from desktop_app.worker import replacement_ready, error_reason, pause_message, display_log, redact, RecoveryBudget
 
 
 class ReplacementTests(unittest.TestCase):
@@ -34,6 +34,12 @@ class PauseTests(unittest.TestCase):
 
     def test_quiz_failure_has_specific_recovery(self):
         self.assertIn("Open Classes", pause_message("Assessment scored 66%, below the required 70%."))
+
+    def test_lesson_pause_explains_exact_recovery(self):
+        text = pause_message("Incomplete sidebar lesson could not be opened or made no progress.")
+        self.assertIn("Save and Continue", text)
+        self.assertIn("Reload", text)
+        self.assertNotIn("Check the browser", text)
 
     def test_repository_uses_windows_url_handler(self):
         from desktop_app.window import App
@@ -68,6 +74,27 @@ class LogPrivacyTests(unittest.TestCase):
 
     def test_session_url_redacted_in_regular_errors(self):
         self.assertNotIn("secret", redact("Navigation failed at https://academy.oracle.com/pls/f?p=secret"))
+
+
+class AutomaticRecoveryTests(unittest.TestCase):
+    def test_same_failed_lesson_has_three_bounded_retries(self):
+        budget = RecoveryBudget()
+        reason = "Incomplete sidebar lesson could not be opened or made no progress."
+        self.assertEqual([budget.next_delay(reason, "lesson1") for _ in range(4)], [5, 15, 30, None])
+
+    def test_a_different_lesson_gets_its_own_budget(self):
+        budget = RecoveryBudget()
+        reason = "Answer selection did not settle within 10 seconds"
+        for _ in range(3): budget.next_delay(reason, "question1")
+        self.assertEqual(budget.next_delay(reason, "question2"), 5)
+
+    def test_real_user_actions_are_not_retried_automatically(self):
+        budget = RecoveryBudget()
+        for reason in ["Groq API limit was reached", "Assessment scored 66%, below the required 70%", "Question changed while AI was answering", "Invalid answer indices", "Question did not advance"]:
+            self.assertIsNone(budget.next_delay(reason, "page"))
+
+    def test_results_navigation_can_recover_without_new_attempt(self):
+        self.assertEqual(RecoveryBudget().next_delay("View Results did not reveal a return control", "results"), 5)
 
 
 if __name__ == '__main__':

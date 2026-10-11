@@ -31,7 +31,23 @@ In the source version, edit .env and save it. Active retries reload the key; a r
 
 A key change alone does not require login. Browser restarts and Oracle session expiry can require another sign-in. The bot extends recognized session warnings automatically, but cannot sign in for you after expiry.
 
-## Saved progress and quiz attempts
+## Repeated Continue prompts while Oracle is loading
+
+Older desktop releases can pause with **Answer did not reach the requested selection state** or **Incomplete sidebar lesson could not be opened or made no progress**, even when you did not touch the browser. Oracle may still be updating an answer selection or loading the next lesson. Selecting Continue immediately can encounter the same unfinished update.
+
+The corrected runner waits up to 10 seconds for answer selection and up to 60 seconds for an active lesson's controls. It does not click an answer again while waiting or mark an unfinished lesson complete.
+
+The corrected desktop worker also retries recognized temporary loading failures automatically after 5, 15, and 30 seconds, with a visible status message. Continue is disabled during these waits. Retries are bounded for the same failure and page state; a persistent failure still requires attention. API quota, expired login, low scores, and ambiguous answers are not treated as routine loading retries.
+
+If the PDF viewer says **Failed to load PDF document**, that is a separate content-loading failure. Check your connection and use the PDF viewer's Reload control or reopen the lesson. Wait until the course's **Save and Continue** control is available before selecting **Continue** in the app. If the failure persists, include the pause reason in a bug report. A new Groq key will not fix a lesson-loading failure.
+
+## Passed quiz pauses at View Results
+
+If the score screen shows a passing score but the app says **View Results did not reveal a return control**, the assessment was submitted; leaving its results page failed. This is different from a failed quiz or an API limit.
+
+The corrected runner retries only View Results navigation up to three times, allowing 15 seconds per wait. It does not resubmit the assessment or start another attempt. If Oracle still does not respond, select **View Results** manually, wait for its results page, then select **Continue** in the app. Do not choose Take an Assessment again.
+
+## Resuming saved coursework
 
 The bot skips 100% sections and completed sidebar items. Interrupted quizzes can resume through Oracle's Finish Assessment or Resume Assessment control. Saved progress belongs to your Oracle account even if you switch between source and desktop versions.
 

@@ -66,14 +66,15 @@ def matching_button(page, patterns, modal_only=False):
                 controls = root.locator("button, a, input[type='button'], input[type='submit']")
                 # One DOM snapshot instead of several browser round trips for
                 # every control, including duplicate button-label spans.
-                indices = controls.evaluate_all("""(elements, patterns) => {
+                indices = controls.evaluate_all(r"""(elements, patterns) => {
                     const expressions = patterns.map(p => new RegExp(p, 'i'));
                     return elements.flatMap((el, i) => {
-                        const text = (el.tagName === 'INPUT' ? el.value : el.innerText)
+                        const text = el.querySelector('.t-Button-label')?.innerText
+                            || (el.tagName === 'INPUT' ? el.value : el.innerText)
                             || el.getAttribute('aria-label') || '';
                         if (!el.getClientRects().length || getComputedStyle(el).visibility === 'hidden'
                             || el.disabled || el.getAttribute('aria-disabled') === 'true') return [];
-                        return expressions.some(re => re.test(text.trim())) ? [i] : [];
+                        return expressions.some(re => re.test(text.trim().replace(/\s+/g, ' '))) ? [i] : [];
                     });
                 }""", patterns)
                 for index in indices:

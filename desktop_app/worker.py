@@ -31,15 +31,40 @@ def display_log(text):
     return redact(text)
 
 
+class RecoveryBudget:
+    """Bound automatic retries for the same operation and saved page state."""
+    def __init__(self):
+        self.counts = {}
+
+    def next_delay(self, reason, state):
+        if not re.search(r'lesson controls|Incomplete sidebar lesson|Save action|confirm saving|Save and Continue control|selection state|Answer selection|View Results|results-navigation waits|Return to Course did not leave|TimeoutError|frame was detached|execution context was destroyed', reason, re.I):
+            return None
+        if re.search(r'Groq|API limit|below the required 70%|question changed|did not advance', reason, re.I):
+            return None
+        key = (reason, state)
+        count = self.counts.get(key, 0)
+        if count >= 3 or (key not in self.counts and len(self.counts) >= 128):
+            return None
+        self.counts[key] = count + 1
+        return (5, 15, 30)[count]
+
+
 def error_reason(exc):
     return redact(str(exc)) or type(exc).__name__
 
 
 def pause_message(reason):
     reason = redact(reason) or 'The current page could not be processed; no error details were returned.'
-    action = ('Open Classes before selecting Continue to retry with recorded feedback.'
-              if 'below the required 70%' in reason else
-              'Check the browser, then select Continue to retry from the current page.')
+    if 'below the required 70%' in reason:
+        action = 'Open Classes before selecting Continue to retry with recorded feedback.'
+    elif re.search(r'View Results|return-to-course|Return to Course', reason, re.I):
+        action = 'Your assessment was submitted. Select View Results in Oracle and wait for the results page, then select Continue here. Do not start another quiz attempt.'
+    elif re.search(r'lesson|sidebar|Save and Continue', reason, re.I):
+        action = 'Wait for the lesson to finish loading. If the PDF failed to load, use Reload in its viewer. When Save and Continue is available, select Continue in this app.'
+    elif re.search(r'answer.*selection|selection state', reason, re.I):
+        action = 'Wait for Oracle to finish updating the selected answer, then select Continue. The bot has not submitted this answer.'
+    else:
+        action = 'Look for an Oracle sign-in prompt or load error in the bot\'s browser. Resolve it or wait for the page to finish loading, then select Continue.'
     return f'Paused: {reason}\n{action}'
 
 
@@ -69,6 +94,7 @@ def run():
     commands = queue.Queue()
     last_failure = {'text': ''}
     stopped = threading.Event()
+    recovery = RecoveryBudget()
     output_lock = threading.Lock()
 
     def emit(kind, **data):
@@ -100,7 +126,7 @@ def run():
 
     threading.Thread(target=read_commands, daemon=True).start()
     from bot import diagnostics, runner, groq_solver
-    from bot.session import maintain_session, native_dialog, SessionExpired
+    from bot.session import maintain_session, native_dialog, SessionExpired, session_wait
     from playwright.sync_api import sync_playwright
     from bot import session
     original_check = maintain_session
@@ -116,6 +142,21 @@ def run():
         if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
             diagnostics.logger.removeHandler(handler)
     diagnostics.logger.addHandler(Logs())
+
+    def recover_loading(page, reason):
+        try:
+            identity = runner.question_identity(page)
+            active = tuple(item.inner_text(timeout=1000) for _, item in runner.wizard_steps(page)
+                           if runner.is_step_active(item))
+            state = repr(identity) if identity else repr((active, runner.page_text(page)[:500]))
+        except Exception:
+            return False  # A closed/unreadable page needs explicit recovery.
+        delay = recovery.next_delay(reason, state)
+        if delay is None:
+            return False
+        emit('state', state='recovering', text=f'Oracle is slow to respond. Retrying automatically in {delay} seconds; no Continue click is needed.')
+        session_wait(page, delay)
+        return True
     # Reject daily-quota exhaustion immediately in this desktop snapshot.
     # The user can replace the key in the app without restarting Chrome.
 
@@ -187,6 +228,8 @@ def run():
                                         emit('log', level='ERROR', text=redact(exc))
                                         emit('state', state='key', text='This key could not be verified. Enter a valid key with available quota.')
                             else:
+                                if recover_loading(page, log_text):
+                                    continue
                                 emit('state', state='paused', text=pause_message(log_text))
                                 wait_for('continue', page, resume_on_key='Groq' in log_text)
                     except SessionExpired as exc:
@@ -196,6 +239,13 @@ def run():
                     except Exception as exc:
                         reason = error_reason(exc)
                         emit('log', level='ERROR', text=reason)
+                        try:
+                            if recover_loading(page, reason):
+                                continue
+                        except SessionExpired:
+                            emit('state', state='login', text='Oracle needs another sign-in. Sign in, open Classes, and select Continue.')
+                            wait_for('continue', page)
+                            continue
                         emit('state', state='paused', text=pause_message(reason))
                         wait_for('continue', page)
     except KeyboardInterrupt:

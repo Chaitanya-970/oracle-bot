@@ -339,6 +339,66 @@ class BrowserTests(unittest.TestCase):
         self.assertEqual(done, {(c,s,i) for c in range(2) for s in range(2) for i in range(2)})
         self.assertEqual(len(answers), 8)
 
+    def test_delayed_answer_selection_waits_without_clicking_twice(self):
+        self.page.set_content('''<p>Question 1 of 1</p><div region-id="question-Text">Pick B</div>
+          <button class="choice-SelectArea" role="radio" aria-checked="false" aria-label="A">A</button>
+          <button class="choice-SelectArea" role="radio" aria-checked="false" aria-label="B"
+            onclick="window.clicks=(window.clicks||0)+1;setTimeout(()=>this.setAttribute('aria-checked','true'),400)">B</button>
+          <button onclick="window.submitted=true;document.body.innerHTML='Results Summary'">Submit Answer</button>''')
+        with patch('bot.runner.solve_with_session', return_value=[1]), patch('bot.runner.finish_assessment', return_value=True):
+            self.assertTrue(runner.solve_current_quiz(self.page))
+        self.assertEqual(self.page.evaluate('window.clicks'), 1)
+        self.assertTrue(self.page.evaluate('window.submitted'))
+
+    def test_delayed_lesson_save_control_does_not_reopen_active_lesson(self):
+        self.page.set_content('''<li class="t-WizardSteps-step is-active-module"><a onclick="window.reopened=true">Lesson</a></li>
+          <p>Failed to load PDF document.</p>
+          <button disabled onclick="document.querySelector('li').classList.add('is-complete')">Save and Continue</button>
+          <script>setTimeout(()=>document.querySelector('button').disabled=false,400)</script>''')
+        with patch('bot.runner.STEP_DELAY', 0):
+            self.assertTrue(runner.process_course_lessons(self.page))
+        self.assertIsNone(self.page.evaluate('window.reopened'))
+
+    def test_decorated_save_button_matches_its_label(self):
+        self.page.set_content('<button onclick="window.saved=true"><span class="t-Button-label">Save and Continue</span><span>→</span></button>')
+        self.assertTrue(click_button_by_text(self.page, ['^Save and Continue$']))
+        self.assertTrue(self.page.evaluate('window.saved'))
+
+    def test_failed_save_click_does_not_reopen_current_lesson(self):
+        self.page.set_content('<li class="t-WizardSteps-step is-active-module"><a onclick="window.reopened=true">Lesson</a></li><button>Save and Continue</button>')
+        with patch('bot.runner.STEP_DELAY', 0), patch('bot.runner.safe_click', return_value=False), patch('bot.runner.wait_until', return_value=False), patch('bot.runner.capture_diagnostic') as diagnostic:
+            self.assertFalse(runner.process_course_lessons(self.page))
+        self.assertIn('could not be clicked', diagnostic.call_args.args[1])
+        self.assertIsNone(self.page.evaluate('window.reopened'))
+
+    def test_lesson_load_failure_has_specific_recovery_and_stays_incomplete(self):
+        self.page.set_content('''<li class="t-WizardSteps-step is-active-module"><a>Lesson</a></li><p>Failed to load PDF document.</p>''')
+        with patch('bot.runner.STEP_DELAY', 0), patch('bot.runner.wait_until', return_value=False), patch('bot.runner.capture_diagnostic') as diagnostic:
+            self.assertFalse(runner.process_course_lessons(self.page))
+        self.assertIn('60 seconds', diagnostic.call_args.args[1])
+        self.assertIn('reload that lesson', diagnostic.call_args.args[1])
+        self.assertFalse(self.page.locator('li').evaluate("el=>el.classList.contains('is-complete')"))
+
+    def test_results_navigation_retries_without_reopening_assessment(self):
+        self.page.set_content('''<p>Percentage Scored: 93.33%</p>
+          <button id="view" onclick="window.views=(window.views||0)+1;if(window.views===2)setTimeout(()=>document.getElementById('back').hidden=false,100)">View Results</button>
+          <button id="back" hidden onclick="document.getElementById('done').hidden=false">Return to Course Lessons</button>
+          <li id="done" class="t-WizardSteps-step is-complete" hidden>Done</li>''')
+        original_wait = runner.wait_until
+        def quick_wait(page, predicate, timeout=15):
+            return original_wait(page, predicate, timeout=.5)
+        with patch('bot.runner.wait_until', side_effect=quick_wait):
+            self.assertTrue(runner.finish_assessment(self.page))
+        self.assertEqual(self.page.evaluate('window.views'), 2)
+
+    def test_results_navigation_failure_does_not_resubmit_quiz(self):
+        self.page.set_content('<p>Percentage Scored: 93.33%</p><button onclick="window.views=(window.views||0)+1">View Results</button><button onclick="window.reopened=true">Take an Assessment</button>')
+        with patch('bot.runner.wait_until', return_value=False), patch('bot.runner.capture_diagnostic') as diagnostic:
+            self.assertFalse(runner.finish_assessment(self.page))
+        self.assertEqual(self.page.evaluate('window.views'), 3)
+        self.assertIsNone(self.page.evaluate('window.reopened'))
+        self.assertIn('Do not start a new assessment', diagnostic.call_args.args[1])
+
     def test_failure_does_not_report_success(self):
         self.page.set_content('<p>Question 1 of 1</p><div region-id="question-Text">Question</div><button class="choice-SelectArea" role="radio">A</button><button class="choice-SelectArea" role="radio">B</button>')
         with patch('bot.runner.solve_with_session', side_effect=RuntimeError('unavailable')), patch('bot.runner.capture_diagnostic'):
