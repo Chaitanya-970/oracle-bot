@@ -33,7 +33,7 @@ This is a screenshot of the actual application, not a mockup.
 | Continue | Continues after login or a pause that needs browser attention. |
 | Stop | Stops this app's run. Saved Oracle progress remains. |
 | Log area | Shows lesson progress, question numbers, warnings, and errors. |
-| Blue repository link | Appears when the run completes. Click it to open GitHub in your browser. |
+| Blue repository link | Always visible beneath the app title. Click it to open GitHub in your browser. |
 
 ## If Groq runs out of quota
 
@@ -49,7 +49,7 @@ The bot saves available feedback, returns to the course and automatically retrie
 
 ## Completion and files
 
-At completion, the status says **Finished. Congratulations!** and offers the GitHub repository link. Check your final scores and course status in Oracle.
+At completion, the status says **Finished. Congratulations!**. The repository link remains beneath the app title. Check your final scores and course status in Oracle.
 
 The app stores its browser profile, feedback, logs and diagnostics under **%LOCALAPPDATA%/OracleBot**. The installed folder contains the program and its bundled runtime.
 

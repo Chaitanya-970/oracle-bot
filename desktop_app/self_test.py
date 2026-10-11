@@ -35,13 +35,13 @@ def run():
         assert app.status.get().startswith('Working')
         app.events.put({'type': 'state', 'state': 'paused', 'text': 'Needs attention'})
         app.poll()
-        assert not app.repo_link.winfo_manager()
+        assert app.header_repo_link.winfo_manager() == 'pack'
         app.events.put({'type': 'state', 'state': 'complete', 'text': 'Finished. Congratulations!'})
         app.poll()
         assert app.progress['value'] == 100
-        assert app.repo_link.winfo_manager() == 'pack'
-        assert app.repo_link.cget('text') == 'https://github.com/Chaitanya-970/oracle-bot'
-        assert app.repo_link.bind('<Button-1>')
+        assert app.header_repo_link.winfo_manager() == 'pack'
+        assert app.header_repo_link.cget('text') == 'https://github.com/Chaitanya-970/oracle-bot'
+        assert app.header_repo_link.bind('<Button-1>')
         assert app.log.tk.call(app.log._w, 'tag', 'bind', 'repository', '<Button-1>')
         assert 'Finished' in app.detail.get()
         app.events.put({'type': 'state', 'state': 'recovering', 'text': 'Retrying automatically in 5 seconds; no Continue click is needed.'})

@@ -41,12 +41,6 @@ class App:
         self.progress.pack(fill='x', pady=14)
         self.detail = tk.StringVar(value='No run started')
         ttk.Label(outer, textvariable=self.detail).pack(anchor='w')
-        self.repo_link = ttk.Label(outer, text='https://github.com/Chaitanya-970/oracle-bot',
-                                   foreground='#0563c1', cursor='hand2',
-                                   font=('Segoe UI', 10, 'underline'), takefocus=True)
-        self.repo_link.bind('<Button-1>', lambda event: self.open_repository())
-        self.repo_link.bind('<Return>', lambda event: self.open_repository())
-        self.repo_link.bind('<space>', lambda event: self.open_repository())
         keys = ttk.Frame(outer)
         keys.pack(fill='x', pady=12)
         ttk.Label(keys, text='Groq API key').pack(side='left')
@@ -103,7 +97,6 @@ class App:
     def start_worker(self):
         if self.process and self.process.poll() is None:
             return
-        self.repo_link.pack_forget()
         command = [sys.executable, '--worker'] if getattr(sys, 'frozen', False) else [sys.executable, '-u', str(Path(__file__).with_name('launch.py')), '--worker']
         try:
             self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -183,7 +176,6 @@ class App:
                     self.status.set(event['text'].replace(' https://github.com/Chaitanya-970/oracle-bot', ''))
                     self.progress['value'] = 100
                     self.detail.set('Finished. Congratulations! Please check your final scores in Oracle.')
-                    self.repo_link.pack(before=self.log_frame, anchor='w', pady=(6, 0))
                 elif state in ('error','stopped'):
                     self.progress['value'] = 0
             elif event.get('type') == 'exit':
