@@ -103,8 +103,9 @@ Read the message in the app or terminal first.
 
 - **API limit:** wait for quota or provide a replacement key as explained above.
 - **Sign-in needed:** sign in in the bot's browser, open Classes, then select Continue or press Enter.
+- **Slow Oracle pages:** temporary lesson, answer-selection, and results-loading failures retry automatically up to eight times. The app shows each wait; Continue is only needed if recovery is exhausted.
 - **Network error:** restore your connection, then retry.
-- **Score below 70%:** the bot pauses and saves Oracle's available feedback. **First return to the course outline or Classes in the bot's browser. Then click Continue in the desktop app (or press Enter in the source terminal).** Feedback helps the next attempt avoid previous wrong answers, but does not guarantee a passing score. The desktop app keeps the recovery instructions in its main status above the log until you continue.
+- **Score below 70%:** the bot records available feedback, returns to the course, and retries only that quiz automatically up to twice when its original lesson link is known. If both retries fail or the link is unavailable, open the failed quiz and select Continue in the app (or press Enter in the terminal). AI answers and passing scores are not guaranteed.
 - **Unexpected page:** inspect the browser and diagnostic files before continuing.
 
 Recognized session-extension prompts are handled automatically. If the session has already expired, you must sign in yourself. Completion is checked using Oracle's progress indicators and assessment results.

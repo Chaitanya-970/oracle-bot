@@ -33,7 +33,7 @@ class PauseTests(unittest.TestCase):
         self.assertIn("Continue", text)
 
     def test_quiz_failure_has_specific_recovery(self):
-        self.assertIn("Open Classes", pause_message("Assessment scored 66%, below the required 70%."))
+        self.assertIn("Open the failed quiz", pause_message("Assessment scored 66%, below the required 70%."))
 
     def test_lesson_pause_explains_exact_recovery(self):
         text = pause_message("Incomplete sidebar lesson could not be opened or made no progress.")
@@ -77,21 +77,27 @@ class LogPrivacyTests(unittest.TestCase):
 
 
 class AutomaticRecoveryTests(unittest.TestCase):
-    def test_same_failed_lesson_has_three_bounded_retries(self):
+    def test_same_failed_lesson_has_eight_bounded_retries(self):
         budget = RecoveryBudget()
         reason = "Incomplete sidebar lesson could not be opened or made no progress."
-        self.assertEqual([budget.next_delay(reason, "lesson1") for _ in range(4)], [5, 15, 30, None])
+        self.assertEqual([budget.next_delay(reason, "lesson1") for _ in range(9)], [5, 15, 30, 60, 60, 60, 60, 60, None])
 
     def test_a_different_lesson_gets_its_own_budget(self):
         budget = RecoveryBudget()
         reason = "Answer selection did not settle within 10 seconds"
-        for _ in range(3): budget.next_delay(reason, "question1")
+        for _ in range(8): budget.next_delay(reason, "question1")
         self.assertEqual(budget.next_delay(reason, "question2"), 5)
 
     def test_real_user_actions_are_not_retried_automatically(self):
         budget = RecoveryBudget()
         for reason in ["Groq API limit was reached", "Assessment scored 66%, below the required 70%", "Question changed while AI was answering", "Invalid answer indices", "Question did not advance"]:
             self.assertIsNone(budget.next_delay(reason, "page"))
+
+    def test_changed_error_wording_cannot_reset_same_operation_budget(self):
+        budget = RecoveryBudget()
+        for _ in range(8):
+            budget.next_delay("Oracle lesson controls did not become ready", "lesson1")
+        self.assertIsNone(budget.next_delay("Incomplete sidebar lesson could not be opened", "lesson1"))
 
     def test_results_navigation_can_recover_without_new_attempt(self):
         self.assertEqual(RecoveryBudget().next_delay("View Results did not reveal a return control", "results"), 5)

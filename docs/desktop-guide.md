@@ -45,7 +45,7 @@ Keys are held in memory for the run and are not included in the ZIP. Closing the
 
 ## If a quiz scores below 70%
 
-**First return to the course outline or Classes in the bot's browser. Then click Continue in the app.** The bot uses available feedback when retrying. The pause reason and recovery instructions stay in the main status above the log, so you do not need to search through earlier log messages.
+The bot saves available feedback, returns to the course and automatically retries the same quiz up to twice when its original lesson link is known. The app shows each retry in the progress log. If the limit is reached or the exact quiz link is unavailable, open the failed quiz and select **Continue**. Feedback can improve answers but cannot guarantee a pass.
 
 ## Completion and files
 

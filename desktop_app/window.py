@@ -24,6 +24,16 @@ class App:
         outer = ttk.Frame(root, padding=20)
         outer.pack(fill='both', expand=True)
         ttk.Label(outer, text='Oracle Course Helper', font=('Segoe UI', 19, 'bold')).pack(anchor='w')
+        repository = ttk.Frame(outer)
+        repository.pack(anchor='w', pady=(6, 0))
+        ttk.Label(repository, text='GitHub repo - ').pack(side='left')
+        self.header_repo_link = ttk.Label(repository, text='https://github.com/Chaitanya-970/oracle-bot', foreground='#0563c1',
+                                          cursor='hand2', font=('Segoe UI', 10, 'underline'),
+                                          takefocus=True)
+        self.header_repo_link.pack(side='left')
+        self.header_repo_link.bind('<Button-1>', lambda event: self.open_repository())
+        self.header_repo_link.bind('<Return>', lambda event: self.open_repository())
+        self.header_repo_link.bind('<space>', lambda event: self.open_repository())
         ttk.Label(outer, text='Sign in through the browser. Follow instructions here.').pack(anchor='w', pady=(6, 16))
         self.status = tk.StringVar(value='Select Start to open the bot. Your existing command-line bot is separate.')
         ttk.Label(outer, textvariable=self.status, wraplength=760).pack(anchor='w', fill='x')

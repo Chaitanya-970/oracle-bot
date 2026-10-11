@@ -31,22 +31,7 @@ def display_log(text):
     return redact(text)
 
 
-class RecoveryBudget:
-    """Bound automatic retries for the same operation and saved page state."""
-    def __init__(self):
-        self.counts = {}
-
-    def next_delay(self, reason, state):
-        if not re.search(r'lesson controls|Incomplete sidebar lesson|Save action|confirm saving|Save and Continue control|selection state|Answer selection|View Results|results-navigation waits|Return to Course did not leave|TimeoutError|frame was detached|execution context was destroyed', reason, re.I):
-            return None
-        if re.search(r'Groq|API limit|below the required 70%|question changed|did not advance', reason, re.I):
-            return None
-        key = (reason, state)
-        count = self.counts.get(key, 0)
-        if count >= 3 or (key not in self.counts and len(self.counts) >= 128):
-            return None
-        self.counts[key] = count + 1
-        return (5, 15, 30)[count]
+from desktop_app.engine.bot.recovery import RecoveryBudget, recovery_state
 
 
 def error_reason(exc):
@@ -56,7 +41,7 @@ def error_reason(exc):
 def pause_message(reason):
     reason = redact(reason) or 'The current page could not be processed; no error details were returned.'
     if 'below the required 70%' in reason:
-        action = 'Open Classes before selecting Continue to retry with recorded feedback.'
+        action = 'Automatic retries could not finish this quiz. The course is already open if return navigation succeeded. Open the failed quiz and select Continue to try again with recorded feedback.'
     elif re.search(r'View Results|return-to-course|Return to Course', reason, re.I):
         action = 'Your assessment was submitted. Select View Results in Oracle and wait for the results page, then select Continue here. Do not start another quiz attempt.'
     elif re.search(r'lesson|sidebar|Save and Continue', reason, re.I):
@@ -145,10 +130,7 @@ def run():
 
     def recover_loading(page, reason):
         try:
-            identity = runner.question_identity(page)
-            active = tuple(item.inner_text(timeout=1000) for _, item in runner.wizard_steps(page)
-                           if runner.is_step_active(item))
-            state = repr(identity) if identity else repr((active, runner.page_text(page)[:500]))
+            state = recovery_state(page)
         except Exception:
             return False  # A closed/unreadable page needs explicit recovery.
         delay = recovery.next_delay(reason, state)

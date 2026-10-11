@@ -23,14 +23,14 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# ---------------------------
-# Configuration
-# ---------------------------
+
+
+
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite").strip()
 GEMINI_MODELS = [GEMINI_MODEL] if GEMINI_MODEL else []
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_BASE = os.getenv("GEMINI_BASE", "https://generativelanguage.googleapis.com/v1beta")
-# Ollama is retained only as an optional fallback for image questions/API failures.
+
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3-vl:8b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 MIN_CONFIDENCE = float(os.getenv("MIN_CONFIDENCE", "0.70"))
@@ -119,7 +119,7 @@ def all_frames(driver):
 def ensure_valid_window(driver):
     """Recover if Oracle closed/replaced the current Firefox browsing context."""
     try:
-        # A simple command confirms the current handle is still usable.
+
         driver.current_url
         return True
     except Exception:
@@ -130,8 +130,8 @@ def ensure_valid_window(driver):
     except Exception:
         handles = []
 
-    # Prefer the newest/last remaining window. Oracle sometimes closes the
-    # assessment context when moving to Results Summary.
+
+
     for handle in reversed(handles):
         try:
             driver.switch_to.window(handle)
@@ -216,8 +216,8 @@ def click_text(driver, patterns, tags=None):
                                 candidates.append(clean(el.get_attribute(attr)))
                             except Exception:
                                 pass
-                        # For buttons/spans with nested markup, .text already captures
-                        # descendants; the attributes above cover input-style controls.
+
+
                         if any(rx.fullmatch(c) or ("Save and Continue" in c and rx.search(c)) for c in candidates if c):
                             if click_element(driver, el):
                                 driver.switch_to.default_content()
@@ -252,12 +252,12 @@ def find_incomplete_section(driver):
         return None
     driver.switch_to.default_content()
 
-    # Normal course items use numbered titles such as "Section 3 - ..." or
-    # "DD 11-4: Practice".  The three main 50-question assessments are different:
-    # Oracle lists them as named quiz items (Mid Term/Midterm, Final, Cumulative Final)
-    # rather than numbered sections.  Treat those assessment rows as first-class
-    # course items too, while avoiding generic page headings by preferring clickable
-    # elements below.
+
+
+
+
+
+
     numbered_pattern = re.compile(
         r"^(?:Section|Module|Chapter|Unit)\s+\d+\s*[-:–—]|"
         r"^[A-Z]{2,12}\s+\d+(?:[-.]\d+)*\s*[-:–—:]",
@@ -269,9 +269,9 @@ def find_incomplete_section(driver):
         re.I,
     )
 
-    # Collect candidate section-title elements. Prefer the smallest visible element
-    # whose text is exactly the section title; this avoids choosing a giant wrapper
-    # containing several section rows.
+
+
+
     candidates = {}
     try:
         all_els = driver.find_elements(
@@ -294,9 +294,9 @@ def find_incomplete_section(driver):
             if not (is_numbered or is_main_quiz):
                 continue
 
-            # For the named main quizzes, ignore large non-clickable headings when
-            # possible.  The actual outline row is normally an <a>/<button> or a
-            # compact div/span inside one.
+
+
+
             if is_main_quiz and el.tag_name.lower() not in {"a", "button", "li", "div", "span"}:
                 continue
             rect = driver.execute_script(
@@ -315,7 +315,7 @@ def find_incomplete_section(driver):
     if not candidates:
         return None
 
-    # Collect exact visible percentage markers and their screen positions.
+
     percentages = []
     try:
         pct_els = driver.find_elements(By.XPATH, "//*[normalize-space(text()) and contains(normalize-space(text()), '%')]")
@@ -338,17 +338,17 @@ def find_incomplete_section(driver):
     except Exception:
         pass
 
-    # Preserve document/visual order by y then x. This also prevents accidentally
-    # selecting a later section when two identical wrapper elements exist.
+
+
     ordered = sorted(candidates.values(), key=lambda item: (item[1]["y"], item[1]["x"]))
 
     for el, rect, title in ordered:
         ty = rect["y"] + rect["h"] / 2
         tx = rect["x"] + rect["w"] / 2
 
-        # A percentage belongs to this row when its center is close vertically.
-        # Oracle's layout puts the progress marker at the far right of the same row,
-        # so horizontal distance is deliberately not restrictive.
+
+
+
         nearby = []
         for pct, pr in percentages:
             py = pr["y"] + pr["h"] / 2
@@ -358,7 +358,7 @@ def find_incomplete_section(driver):
         if nearby:
             pct = min(nearby)[1]
             print(f"[COURSE] {title}: {pct}% (progress marker found on its row)")
-            # Per the requested rule, ANY percentage means this section is completed.
+
             continue
 
         print(f"[COURSE] {title}: no progress marker -> INCOMPLETE")
@@ -382,7 +382,7 @@ def is_quiz_landing(driver):
     DOM for a short time while the assessment question page is already visible.
     Never classify an actual Question N of M page as a landing page.
     """
-    # Question pages take priority over stale/hidden landing-page controls.
+
     if is_assessment_question(driver):
         return False
     try:
@@ -466,7 +466,7 @@ def fast_click_save_and_continue(driver):
     except Exception:
         pass
 
-    # Selenium fallback, including iframes.
+
     try:
         driver.switch_to.default_content()
         rx = re.compile(r"\bSave\s+and\s+Continue\b", re.I)
@@ -521,9 +521,9 @@ def wait_for_lesson_control(driver, timeout=SAVE_CONTROL_WAIT):
 
 
 def click_save_progress(driver):
-    # Non-quiz lesson sections use this control to mark the readable lesson
-    # content as completed. Quiz/assessment pages can expose the same control,
-    # so callers must check for question/assessment UI first.
+
+
+
     return click_text(driver, [r"^Save Progress$"])
 
 
@@ -547,8 +547,8 @@ def wait_for_assessment_question(driver, timeout=12):
 
 def reach_quiz(driver, max_clicks=100):
     for step in range(max_clicks):
-        # Always check for the actual question page FIRST. This prevents Oracle's
-        # stale Take-an-Assessment DOM from sending us back into the landing logic.
+
+
         if is_assessment_question(driver):
             print("[COURSE] Assessment question page detected; handing off to Gemini...")
             return
@@ -558,8 +558,8 @@ def reach_quiz(driver, max_clicks=100):
             if not click_take_assessment(driver):
                 stop("Found the assessment landing page but could not click 'Take an Assessment'.")
 
-            # The click opens Oracle's Start modal. Wait for Start, click it,
-            # then explicitly wait for Question N of M before doing anything else.
+
+
             wait_settle(driver, 0.5)
             print("[COURSE] Assessment landing modal detected; clicking Start...")
             if not click_start_assessment(driver):
@@ -571,25 +571,25 @@ def reach_quiz(driver, max_clicks=100):
                 print("[COURSE] Question page reached; handing off to Gemini...")
                 return
 
-            # If Start was clicked but Oracle is still transitioning, retry the
-            # question check once after a normal settle rather than looking for
-            # Take an Assessment again.
+
+
+
             wait_settle(driver, 1.0)
             if is_assessment_question(driver):
                 print("[COURSE] Question page reached; handing off to Gemini...")
                 return
             continue
 
-        # A section can end directly on a readable lesson with Save Progress.
-        # Check this BEFORE looking for Save and Continue so we never get stuck
-        # after the final lesson page.
+
+
+
         if is_readable_lesson_page(driver):
             print("[COURSE] Readable lesson with Save Progress detected; handing off...")
             return
 
-        # Oracle navigation is intentionally fast here. Do not wait for the whole
-        # page-load cycle after every lesson: click Save and Continue, give the
-        # APEX page a short moment to swap the control, and immediately scan again.
+
+
+
         if fast_click_save_and_continue(driver):
             print(f"[COURSE] Save and Continue ({step + 1})")
             state = wait_for_lesson_control(driver)
@@ -603,20 +603,20 @@ def reach_quiz(driver, max_clicks=100):
                 return
             if state == "outline":
                 return
-            # If Oracle is still rebuilding the lesson after the timeout, keep
-            # the cycle alive rather than throwing a fatal error.
+
+
             print("[COURSE] Save and Continue clicked but Oracle did not expose the next control yet; retrying...")
             continue
 
-        # The control can disappear briefly during an APEX refresh. Poll for it
-        # before declaring the section broken.
+
+
         state = wait_for_lesson_control(driver, timeout=SAVE_CONTROL_WAIT)
         if state in {"clicked", "question", "quiz", "progress", "outline"}:
             if state == "clicked":
                 print(f"[COURSE] Save and Continue ({step + 1})")
             continue
 
-        # Sidebar quiz/assessment link fallback.
+
         clicked = False
         for pat in [r"^(?:Quiz|Assessment)\s*[:–-].*$"]:
             for el in find_visible_by_text(driver, pat):
@@ -655,7 +655,7 @@ def _question_region(driver):
                     return el
         except Exception:
             pass
-    # Fallback: locate the question heading and walk upward to a compact block.
+
     try:
         for h in driver.find_elements(By.XPATH, "//*[self::h1 or self::h2 or self::h3 or self::div or self::span]"):
             if not visible(h) or not re.fullmatch(r"Question\s+\d+\s+of\s+\d+", clean(text_of(h)), re.I):
@@ -676,7 +676,7 @@ def extract_question_text(driver):
     if region is None:
         return ""
     txt = clean(text_of(region))
-    # Remove the question counter if a broad fallback container was used.
+
     txt = re.sub(r"^Question\s+\d+\s+of\s+\d+\s*", "", txt, flags=re.I)
     return clean(txt)
 
@@ -722,7 +722,7 @@ def extract_options(driver):
     """
     driver.switch_to.default_content()
 
-    # Exact current Oracle selector first.
+
     try:
         buttons = driver.find_elements(By.CSS_SELECTOR, "button.choice-SelectArea")
         opts=[]
@@ -738,7 +738,7 @@ def extract_options(driver):
     except Exception:
         pass
 
-    # Generic ARIA fallback.
+
     for selector in ('[role="radio"]', '[role="checkbox"]', 'button[aria-label]'):
         try:
             opts=[]
@@ -817,7 +817,7 @@ def _ollama_chat(prompt, image_b64=None):
             return json.loads(resp.read().decode())
 
     first_error=None
-    # Normal API path for instruct/non-thinking models.
+
     try:
         result=post("/api/chat", {"model":OLLAMA_MODEL,"messages":messages,"stream":False,"think":False,"options":{"temperature":0,"num_predict":96},"keep_alive":"10m"})
         raw=((result.get("message",{}) or {}).get("content") or "").strip()
@@ -826,8 +826,8 @@ def _ollama_chat(prompt, image_b64=None):
     except Exception as exc:
         first_error=exc
 
-    # Compatibility path for the installed qwen3-vl:8b thinking tag.
-    # The documented workaround is raw ChatML + assistant <think> prefill.
+
+
     try:
         raw_messages=[{"role":"user","content":user_content}]
         if image_b64: raw_messages[0]["images"]=[image_b64]
@@ -855,7 +855,7 @@ def _parse_indices(raw, n_options):
         i=int(x)
         if 0<=i<n_options and i not in vals: vals.append(i)
     if vals: return vals,1.0
-    # Accept True/False for binary questions as a final safety net.
+
     low=raw.lower()
     if n_options==2:
         if re.search(r"\btrue\b",low) and not re.search(r"\bfalse\b",low): return [0],1.0
@@ -960,7 +960,7 @@ def click_option(driver, option):
     except Exception:
         pass
 
-    # Re-find by stable Oracle attributes in case the original WebElement went stale.
+
     label=option[1]
     try:
         for candidate in driver.find_elements(By.CSS_SELECTOR, "button.choice-SelectArea"):
@@ -1020,15 +1020,15 @@ def click_last_visible_exact(driver, label):
 
 
 def click_complete_assessment(driver):
-    # First click is the button on the final question page. Prefer the last
-    # visible exact match because Oracle can keep stale controls in the DOM.
+
+
     return click_last_visible_exact(driver, "Complete Assessment")
 
 
 def click_confirm_complete(driver):
-    # The confirmation modal contains a SECOND Complete Assessment button.
-    # The important distinction is to choose the modal's last visible action,
-    # not the underlying final-question button that Oracle leaves in the DOM.
+
+
+
     deadline = time.time() + 8
     while time.time() < deadline:
         if click_last_visible_exact(driver, "Complete Assessment"):
@@ -1038,8 +1038,8 @@ def click_confirm_complete(driver):
 
 
 def click_view_results(driver):
-    # Oracle shows this on the post-assessment score page. Prefer the last
-    # visible exact match for the same stale-DOM reason.
+
+
     return click_last_visible_exact(driver, "View Results")
 
 
@@ -1053,7 +1053,7 @@ def complete_quiz(driver):
             if re.search(r"Percentage Scored|Results Summary|Mastery Score",text,re.I):
                 print("[QUIZ] Results page detected.")
                 return
-            # If Oracle is still rendering, don't crash; let the supervisor rescan.
+
             raise RuntimeError("Assessment question was not detected yet.")
         qnum,total=int(m.group(1)),int(m.group(2))
         if last_q != qnum: print(f"\n[QUIZ] Question {qnum}/{total}")
@@ -1090,9 +1090,9 @@ def complete_quiz(driver):
                 if not click_complete_assessment(driver): raise RuntimeError("Could not find final 'Complete Assessment'.")
                 time.sleep(0.5)
                 if not click_confirm_complete(driver): raise RuntimeError("Could not confirm 'Complete Assessment'.")
-                # Wait for the score/results page, then explicitly open View Results
-                # before returning to the course. This is part of Oracle's normal
-                # completion flow and is intentionally retried if the page is slow.
+
+
+
                 results_deadline = time.time() + 15
                 results_clicked = False
                 while time.time() < results_deadline:
@@ -1191,7 +1191,7 @@ def is_readable_lesson_page(driver):
     txt = body_text(driver)
     if not txt:
         return False
-    # A readable lesson can contain lots of prose but should expose Save Progress.
+
     return bool(re.search(r"\bSave Progress\b", txt, re.I))
 
 
@@ -1200,8 +1200,8 @@ def complete_readable_lesson(driver):
     if not click_save_progress(driver):
         raise RuntimeError("Readable lesson detected but could not click 'Save Progress'.")
     wait_settle(driver, 1.0)
-    # Oracle normally returns to the course outline after saving. If it does not,
-    # let the normal return helper handle the lesson/course navigation.
+
+
     if not on_course_outline(driver):
         for _ in range(8):
             if on_course_outline(driver):
@@ -1251,8 +1251,8 @@ def run_one_cycle(driver, max_sections=MAX_SECTIONS):
                 return True
             el,title=target
             click_section(driver,el,title)
-            # A section may end in a quiz OR in ordinary readable content with
-            # Save Progress. Check the stable quiz markers before touching Save Progress.
+
+
             if is_assessment_question(driver):
                 complete_quiz(driver)
                 completed += 1
@@ -1271,8 +1271,8 @@ def run_one_cycle(driver, max_sections=MAX_SECTIONS):
                 completed += 1
                 print(f"[SECTION] {title} readable lesson completed. Total this run: {completed}")
                 continue
-            # Otherwise use the existing lesson navigation. It may lead to a
-            # quiz after one or more Save and Continue clicks.
+
+
             reach_quiz(driver)
             if is_assessment_question(driver) or is_quiz_landing(driver):
                 if is_quiz_landing(driver):
@@ -1310,12 +1310,12 @@ def main():
             ok=run_one_cycle(driver)
             if ok:
                 print("\n[COURSE] Course scan finished.\n[NEXT] Watcher stays active — navigate the SAME Firefox window to the next course; no ENTER is needed.")
-                # Keep watching continuously. If the user opens another course,
-                # the next scan will detect its outline and resume automatically.
+
+
                 time.sleep(3)
                 continue
-            # Fallback supervisor: keep the process/browser alive. Re-check the
-            # page instead of terminating after a transient Selenium/Ollama error.
+
+
             print("\n[FALLBACK] Runner hit an error but will keep watching the browser.")
             attempt = 0
             while True:
@@ -1333,8 +1333,8 @@ def main():
                 if is_assessment_question(driver) or is_quiz_landing(driver) or is_readable_lesson_page(driver) or on_course_outline(driver):
                     print("[FALLBACK] Oracle page detected again; resuming automation.")
                     break
-            # Infinite watcher: it keeps scanning until an Oracle page is visible or Ctrl+C is pressed.
-            # This is intentionally not bounded by a fixed number of retries.
+
+
     except KeyboardInterrupt:
         print("\n[STOP] Ctrl+C received. Firefox is left open and its login state is preserved.")
     except Exception as exc:
@@ -1343,8 +1343,8 @@ def main():
         print("\nFirefox is being left open so you can inspect/recover the page.")
         input("Press ENTER to return to the watcher... ")
     finally:
-        # Deliberately do not quit Firefox on ordinary errors. Only Ctrl+C from
-        # the outer process should end the watcher; browser state remains on disk.
+
+
         pass
 
 

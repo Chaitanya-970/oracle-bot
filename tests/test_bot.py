@@ -204,9 +204,23 @@ class BrowserTests(unittest.TestCase):
         from pathlib import Path
         from bot.assessment_results import feedback_for
         self.page.set_content('<h1>Results Summary</h1><table class="t-Report-report"><tbody><tr><td headers="SCORE">66.67%</td></tr><tr><td headers="QUESTION">Arcs model exclusive OR?</td><td headers="USER_CHOICE">False</td><td headers="INCORRECT_RESPONSE_FEEDBACK">Incorrect</td></tr></tbody></table><button>Return to Course Lessons</button>')
-        with TemporaryDirectory() as directory, patch('bot.assessment_results.FEEDBACK_FILE', Path(directory)/'feedback.json'), patch('bot.runner.capture_diagnostic'):
+        with TemporaryDirectory() as directory, patch('bot.assessment_results.FEEDBACK_FILE', Path(directory)/'feedback.json'), patch('bot.runner.wait_until', return_value=True), patch('bot.runner.capture_diagnostic'):
             self.assertFalse(runner.finish_assessment(self.page))
             self.assertEqual(feedback_for('Arcs model exclusive OR?')[0]['answer'], 'False')
+            self.assertIn('original lesson link is unavailable', runner.LAST_FAILURE)
+
+    def test_low_score_reopens_only_original_quiz_and_bounds_attempts(self):
+        self.page.set_content('<h1>Results Summary</h1><button>Return to Course Lessons</button>')
+        self.page._oracle_quiz_retry = {'url': 'https://fixture.test/original-quiz', 'retries': 0}
+        with patch('bot.assessment_results.record_results', return_value=66.67), patch('bot.runner.wait_until', return_value=True), patch('bot.runner.click_button_by_text', return_value=True), patch.object(self.page, 'goto') as navigate, patch('bot.runner.handle_quiz_landing_and_start', return_value=True) as restart, patch('bot.runner.capture_diagnostic'):
+            self.assertTrue(runner.finish_assessment(self.page))
+            self.assertTrue(runner.finish_assessment(self.page))
+            self.assertFalse(runner.finish_assessment(self.page))
+            self.assertEqual(navigate.call_count, 2)
+            self.assertEqual(restart.call_count, 2)
+            self.assertEqual(navigate.call_args.args[0], 'https://fixture.test/original-quiz')
+            restart.assert_called_with(self.page, retry=True)
+            self.assertIn('after two automatic retries', runner.LAST_FAILURE)
 
     def test_return_control_alone_is_not_success(self):
         self.page.set_content('<button>Exit</button>')

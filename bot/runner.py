@@ -11,11 +11,17 @@ from bot.apex_helpers import (safe_click, click_button_by_text, matching_button,
 from bot.groq_solver import solve_with_session
 from bot.session import maintain_session, session_wait, wait_until, native_dialog, SessionExpired
 
+from bot.recovery import RecoveryBudget, recovery_state
+
+LAST_FAILURE = ""
+
 RETURN_COURSE = [r"^Return to Course Lessons$", r"^Return to Course$", r"^Course Outline$", r"^Exit$", r"^Course$"]
 RESULTS = r"Results Summary|Assessment Score|Assessment (?:is )?Complete|Score Summary|Percentage Scored|Mastery Score"
 
 
 def fail(page, reason):
+    global LAST_FAILURE
+    LAST_FAILURE = reason
     capture_diagnostic(page, reason)
     log_error(reason)
     return False
@@ -60,13 +66,24 @@ def finish_assessment(page):
 
     result_score = record_results(page)
     score = result_score if result_score is not None else score
-    if score is not None and score < 70:
-        return fail(page, f"Assessment scored {score}%, below the required 70%. Feedback recorded for retry.")
-
     if not click_button_by_text(page, RETURN_COURSE):
         return fail(page, "Results reached, but Return to Course was not found.")
     if not wait_until(page, lambda: bool(wizard_steps(page) or section_controls(page) or course_controls(page))):
         return fail(page, "Return to Course did not leave the assessment results.")
+    if score is not None and score < 70:
+        target = getattr(page, '_oracle_quiz_retry', None)
+        if not target:
+            return fail(page, f"Assessment scored {score}%, below the required 70%. Feedback recorded, but this resumed quiz's original lesson link is unavailable. Open that quiz before continuing.")
+        if target['retries'] >= 2:
+            return fail(page, f"Assessment scored {score}%, below the required 70% after two automatic retries. Feedback recorded. The course is already open; review the quiz before continuing.")
+        target['retries'] += 1
+        log_info(f"Assessment scored {score}%. Reopening only this quiz automatically (retry {target['retries']}/2) using recorded feedback.")
+        page.goto(target['url'], wait_until='domcontentloaded', timeout=PAGE_LOAD_TIMEOUT)
+        if not wait_until(page, lambda: is_quiz_landing_page(page)):
+            return fail(page, "Could not reopen the original quiz for automatic retry. Open that quiz in Oracle before continuing.")
+        return handle_quiz_landing_and_start(page, retry=True)
+    if hasattr(page, '_oracle_quiz_retry'):
+        del page._oracle_quiz_retry
     log_success("Assessment submitted; results confirmed and returned to course.")
     return True
 
@@ -145,9 +162,12 @@ def solve_current_quiz(page):
     return fail(page, "Assessment exceeded the 200-question safety limit.")
 
 
-def handle_quiz_landing_and_start(page):
+def handle_quiz_landing_and_start(page, retry=False):
     maintain_session(page)
     if not is_quiz_start_modal(page):
+        target = getattr(page, '_oracle_quiz_retry', None)
+        if not retry and (target is None or target['url'] != page.url):
+            page._oracle_quiz_retry = {'url': page.url, 'retries': 0}
         if not click_button_by_text(page, [r"^Take an Assessment$", r"^Finish Assessment$", r"^Resume Assessment$"]):
             return fail(page, "Could not open assessment.")
         if not wait_until(page, lambda: is_quiz_start_modal(page) or is_assessment_question_page(page)):
@@ -373,6 +393,8 @@ def run_all_courses(page):
 
 
 def run_oracle_bot():
+    global LAST_FAILURE
+    recovery = RecoveryBudget()
     from bot.groq_solver import validate_api
     validate_api()
     with sync_playwright() as p:
@@ -409,17 +431,30 @@ def run_oracle_bot():
                 page.goto(ORACLE_HOME_URL, timeout=PAGE_LOAD_TIMEOUT, wait_until="domcontentloaded")
             input("Sign in and open Classes or the course outline in Chrome, then press Enter here: ")
             while True:
+                LAST_FAILURE = ""
                 try:
                     if run_all_courses(page):
                         log_success("Course traversal finished. Check Oracle's completion indicators for the final status.")
                         input("Press Enter to save the session and close Chrome: ")
                         break
                 except SessionExpired as exc:
+                    LAST_FAILURE = str(exc)
                     capture_diagnostic(page, str(exc))
                     log_error(str(exc))
                 except Exception as exc:
+                    LAST_FAILURE = str(exc) or type(exc).__name__
                     capture_diagnostic(page, f"Runner error: {exc}")
                     log_error(str(exc))
+                try:
+                    delay = recovery.next_delay(LAST_FAILURE, recovery_state(page))
+                    if delay is not None:
+                        log_info(f"Oracle is slow to respond. Retrying automatically in {delay} seconds; no Enter press is needed.")
+                        session_wait(page, delay)
+                        continue
+                except SessionExpired:
+                    log_warn("Oracle needs another sign-in before continuing.")
+                except Exception as exc:
+                    log_warn(f"Automatic recovery could not inspect the page: {exc}")
                 answer = input("Automation paused. Fix the browser state and open Classes/outline, then Enter to retry; q to quit: ")
                 if answer.strip().lower() == "q":
                     raise RuntimeError("Stopped before course completion was verified.")

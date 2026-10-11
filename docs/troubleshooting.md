@@ -10,7 +10,7 @@ Read the status and latest log. A quota wait, a login prompt, a failed quiz, and
 | Invalid key / authentication failure | Check the key and its account. Supply a valid key. |
 | Network / DNS error | Restore internet access, then Continue or Enter to retry. |
 | Oracle sign-in needed | Sign in in the bot's browser, open Classes, then Continue or Enter. |
-| Score below 70% | First return to the course outline or Classes in the bot's browser. Then click Continue in the app or press Enter in the terminal. The bot uses recorded feedback where available. |
+| Score below 70% | The bot returns to the course and retries that quiz automatically up to twice using available feedback when its original lesson link is known. If the retries fail or the link is unavailable, open the failed quiz and Continue or press Enter. |
 | Unexpected page | Inspect the browser and diagnostic files before retrying. |
 | Profile already in use | Close the other browser using this bot profile, then retry. |
 | Finished / completed traversal | Check final Oracle scores and progress; no restart is needed. |
@@ -37,7 +37,7 @@ Older desktop releases can pause with **Answer did not reach the requested selec
 
 The corrected runner waits up to 10 seconds for answer selection and up to 60 seconds for an active lesson's controls. It does not click an answer again while waiting or mark an unfinished lesson complete.
 
-The corrected desktop worker also retries recognized temporary loading failures automatically after 5, 15, and 30 seconds, with a visible status message. Continue is disabled during these waits. Retries are bounded for the same failure and page state; a persistent failure still requires attention. API quota, expired login, low scores, and ambiguous answers are not treated as routine loading retries.
+Both the source runner and desktop worker retry recognized temporary loading failures automatically up to eight times, waiting 5, 15, 30, then 60 seconds between attempts, with a visible status message. Continue is disabled during these waits. Related failures share a retry budget for the same operation and page state; a persistent failure still requires attention. API quota, expired login, low scores, and ambiguous answers are not treated as routine loading retries.
 
 If the PDF viewer says **Failed to load PDF document**, that is a separate content-loading failure. Check your connection and use the PDF viewer's Reload control or reopen the lesson. Wait until the course's **Save and Continue** control is available before selecting **Continue** in the app. If the failure persists, include the pause reason in a bug report. A new Groq key will not fix a lesson-loading failure.
 
