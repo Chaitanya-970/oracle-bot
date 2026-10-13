@@ -41,7 +41,7 @@ Progress, API limits, sign-in requests, errors, and completion appear in the app
 
 When the run finishes, the window says **Finished. Congratulations!** and offers a link to star [the repository](https://github.com/Chaitanya-970/oracle-bot).
 
-The Windows package has passed offline window, browser, engine, and worker checks. Its complete Oracle workflow has not yet been validated. macOS and Linux need separate builds; this Windows ZIP will not run on them. Neither desktop platform has been validated, and Linux may require system libraries for Chromium.
+The Windows package has passed offline window, browser, engine, and worker checks. Its complete Oracle workflow has not yet been validated. The source version has been reported working on macOS; follow the Mac setup below. This Windows ZIP will not run directly on macOS or Linux. Linux remains untested, and no native Mac or Linux desktop package is provided.
 
 ## Option 2: Source code
 
@@ -72,7 +72,44 @@ You can also start it from the project folder with:
 python run_bot.py
 ```
 
-On macOS and Linux, use `python3` where needed and run the Python command instead of start.bat. The source uses cross-platform tools, but this project has only been tested on Windows, so those systems are not yet verified.
+Mac users can follow the steps below. Linux users can follow the [source setup guide](docs/source-setup.md#linux); Linux remains untested.
+
+### Mac setup
+
+The source version has been reported working on a Mac. You do not need a Windows VM or the Windows release ZIP for this setup.
+
+1. Install [Python 3 for macOS](https://www.python.org/downloads/macos/) and [Google Chrome](https://www.google.com/chrome/).
+2. Download this repository using **Code > Download ZIP** and extract it, or clone it with Git. Open the folder containing **run_bot.py** and **requirements.txt**.
+3. Open **Terminal**. Type `cd ` (including the space), drag the extracted project folder from Finder into Terminal, then press Enter.
+4. Run these commands one line at a time to prepare the project:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env
+nano .env
+```
+
+Copy .env.example only on your first setup. If you already have a .env file, keep it and edit it instead.
+
+5. In the editor, replace `your_groq_api_key_here` on the `GROQ_API_KEY=` line with your key from [Groq Console](https://console.groq.com/keys). Keep `BROWSER_CHANNEL=chrome`. Press **Control+O**, then **Enter** to save, and **Control+X** to close the editor.
+6. Start the bot:
+
+```bash
+python run_bot.py
+```
+
+7. Sign in to Oracle Academy in the Chrome window the bot opens, open **Classes**, and press **Enter** in Terminal when prompted. Keep Terminal and the bot's Chrome window open, and keep your Mac awake while it runs.
+
+To run it again, open Terminal in the same project folder and run:
+
+```bash
+source .venv/bin/activate
+python run_bot.py
+```
+
+Mac users do not need Node.js, npm, or a separate Chromium download when using the installed Google Chrome. Use the Terminal commands above; **start.bat** and **OracleBot.exe** are Windows files. If it pauses, follow the Terminal message. Temporary Oracle loading failures retry automatically, and replacing a Groq key works as described below.
 
 The default models are `openai/gpt-oss-120b` for text and `qwen/qwen3.8-27b` for diagrams. You can change them in .env if Groq changes model availability.
 

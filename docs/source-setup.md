@@ -26,7 +26,7 @@ Sign in in Chrome, open Classes, and press Enter in the terminal when asked.
 
 ## macOS
 
-The Python and Playwright stack supports macOS, but this specific bot has not been validated on a Mac. The Windows ZIP is not compatible with macOS.
+The source version has been reported working on macOS. Use the Python source directly; a Windows VM is not required. The Windows ZIP is not compatible with macOS. See the [Mac walkthrough in the README](../README.md#mac-setup) for instructions including opening Terminal and editing your key.
 
 Install Python 3 and Google Chrome, then open Terminal in the project folder:
 
